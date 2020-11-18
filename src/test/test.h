@@ -32,12 +32,12 @@
      */
 	/**@{*/
     #define NR_NODES       2
-    #define MASTER_NODENUM 0
+    #define MASTER_NODENUM PROCESSOR_NODENUM_MASTER
+    #define SLAVE_NODENUM  PROCESSOR_NODENUM_LEADER
+
 #ifdef __mppa256__
-	#define SLAVE_NODENUM  8
 	#define TEST_THREAD_NPORTS (K1BDP_CORES_NUM - 1)
 #else
-	#define SLAVE_NODENUM  1
 	#define TEST_THREAD_NPORTS (THREAD_MAX)
 #endif
     #define NSETUPS 10

@@ -36,12 +36,6 @@
  */
 #define NR_NODES       2
 #define NR_NODES_MAX   PROCESSOR_NOC_NODES_NUM
-#define MASTER_NODENUM 0
-#ifdef __mppa256__
-	#define SLAVE_NODENUM  8
-#else
-	#define SLAVE_NODENUM  1
-#endif
 
 /**
  * @brief Auxiliar array
