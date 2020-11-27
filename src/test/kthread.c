@@ -26,6 +26,13 @@
 #include "test.h"
 
 /**
+ * @name Auxiliar Constants
+ */
+/**@{*/
+#define TEST_DEFAULT_VALUE (0xc0ffee) /**< Default value. */
+/**@}*/
+
+/**
  * @name Extra Tests
  */
 /**@{*/
@@ -91,45 +98,17 @@ static void *fence_task(void *arg)
  */
 static void *yield_task(void *arg)
 {
-	int a;
+	uint64_t a;
 
 	UNUSED(arg);
 
-	a = TEST_EXPECTED_VALUE;
+	a = TEST_DEFAULT_VALUE;
 
 	kthread_yield();
 
-	KASSERT(a == TEST_EXPECTED_VALUE);
+	KASSERT(a == TEST_DEFAULT_VALUE);
 
 	return (NULL);
-}
-
-/**
- * @brief Global variable used in the return task.
- */
-static int global_val = 0;
-
-/**
- * @brief Return pointer task.
- *
- * @param arg Unused argument.
- */
-static void * return_pointer_task(void *arg)
-{
-	UNUSED(arg);
-
-	/* Store a new value to shared variable. */
-	global_val = TEST_EXPECTED_VALUE;
-
-	/* Return the pointer to be access on master thread. */
-	return (&global_val);
-}
-
-static void * return_value_task(void *arg)
-{
-	UNUSED(arg);
-
-	return ((void *) TEST_EXPECTED_VALUE);
 }
 
 /*============================================================================*
@@ -459,7 +438,7 @@ static struct test thread_mgmt_tests_fault[] = {
 static struct test thread_mgmt_tests_stress[] = {
 	{ test_stress_kthread_create_overflow, "[test][thread][stress] thread creation overflow          [passed]" },
 	{ test_stress_kthread_create,          "[test][thread][stress] thread creation/termination       [passed]" },
-	{ test_stress_kthread_create,          "[test][thread][stress] thread creation/termination yield [passed]" },
+	{ test_stress_kthread_yield,           "[test][thread][stress] thread creation/termination yield [passed]" },
 	{ NULL,                                 NULL                                                               },
 };
 
