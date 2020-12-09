@@ -189,6 +189,42 @@ static void *sched_task(void *arg)
  	return (NULL);
  }
 
+/**
+ * @brief Yield task.
+ *
+ * @param arg Unused argument.
+ */
+static void *affinity_task(void *arg)
+{
+	int curr_coreid;
+	int next_coreid;
+
+	UNUSED(arg);
+
+	curr_coreid = core_get_id();
+	next_coreid = curr_coreid == 1 ? 2 : 1;
+
+	KASSERT(
+		kthread_set_affinity(1 << curr_coreid)
+	== KTHREAD_AFFINITY_DEFAULT);
+
+	KASSERT(core_get_id() == curr_coreid);
+
+	KASSERT(
+		kthread_set_affinity(1 << next_coreid)
+	== (1 << curr_coreid));
+
+	KASSERT(core_get_id() == next_coreid);
+
+	KASSERT(
+		kthread_set_affinity(KTHREAD_AFFINITY_DEFAULT)
+	== (1 << next_coreid));
+
+	KASSERT(core_get_id() == next_coreid);
+
+	return (NULL);
+}
+
 /*============================================================================*
  * API Testing Units                                                          *
  *============================================================================*/
@@ -317,6 +353,21 @@ static void test_api_kthread_return_pointer(void)
 	/* The value must be the expected value. */
 	test_assert(*retval == TEST_EXPECTED_VALUE);
 
+/**
+ * @brief API test for thread affinity.
+ */
+static void test_api_kthread_affinity(void)
+{
+#if (CORE_SUPPORTS_MULTITHREADING)
+
+	kthread_t tid;
+
+	/* Spawn thread. */
+	test_assert(kthread_create(&tid, affinity_task, NULL) == 0);
+
+	/* Wait for thread. */
+	test_assert(kthread_join(tid, NULL) == 0);
+
 #endif
 }
 
@@ -400,6 +451,19 @@ static void test_fault_kthread_join_bad(void)
 	test_assert(kthread_join(tid, (void *)(UBASE_VIRT - PAGE_SIZE)) < 0);
 	test_assert(kthread_join(tid, NULL) == 0);
 #endif
+
+#endif
+}
+
+/**
+ * @brief Fault Test: Bad Affinity
+ */
+static void test_fault_kthread_affinity(void)
+{
+#if (CORE_SUPPORTS_MULTITHREADING)
+
+	test_assert(kthread_set_affinity(0) < 0);
+	test_assert(kthread_set_affinity(1 << CORES_NUM) < 0);
 
 #endif
 }
@@ -521,6 +585,7 @@ static struct test thread_mgmt_tests_api[] = {
 	{ test_api_kthread_return_null,    "[test][thread][api] thread return null          [passed]" },
 	{ test_api_kthread_return_value,   "[test][thread][api] thread return value         [passed]" },
 	{ test_api_kthread_return_pointer, "[test][thread][api] thread return pointer       [passed]" },
+	{ test_api_kthread_affinity,       "[test][thread][api] thread affinity             [passed]" },
 	{NULL,                              NULL                                                      },
 };
 
@@ -532,6 +597,7 @@ static struct test thread_mgmt_tests_fault[] = {
 	{ test_fault_kthread_create_bad,      "[test][thread][fault] bad thread create     [passed]" },
 	{ test_fault_kthread_join_invalid,    "[test][thread][fault] invalid thread join   [passed]" },
 	{ test_fault_kthread_join_bad,        "[test][thread][fault] bad thread join       [passed]" },
+	{ test_fault_kthread_affinity,        "[test][thread][fault] bad affinity          [passed]" },
 	{ NULL,                                NULL                                                  },
 };
 
