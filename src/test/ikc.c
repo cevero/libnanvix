@@ -51,6 +51,7 @@
  * Global variables                                                           *
  *============================================================================*/
 
+PRIVATE struct fence _fence;
 PRIVATE char message[PORTAL_SIZE_LARGE];
 PRIVATE char message_in[TEST_THREAD_MAX][PORTAL_SIZE];
 PRIVATE char message_out[PORTAL_SIZE];
@@ -1248,6 +1249,8 @@ PRIVATE void test_stress_ikc_thread_multiplexing_affinity(void)
 	/* Join threads. */
 	for (int i = 1; i < TEST_THREAD_MAX; ++i)
 		test_assert(kthread_join(tid[i - 1], NULL) == 0);
+
+	test_assert(kthread_set_affinity(KTHREAD_AFFINITY_DEFAULT) == TEST_THREAD_AFFINITY);
 }
 
 /*============================================================================*
@@ -1508,6 +1511,8 @@ PRIVATE void test_stress_ikc_thread_multiplexing_affinity_reverse(void)
 	/* Join threads. */
 	for (int i = 1; i < TEST_THREAD_MAX; ++i)
 		test_assert(kthread_join(tid[i - 1], NULL) == 0);
+
+	test_assert(kthread_set_affinity(KTHREAD_AFFINITY_DEFAULT) == TEST_THREAD_AFFINITY);
 }
 
 /*============================================================================*
