@@ -2226,6 +2226,8 @@ PRIVATE void test_stress_portal_thread_multiplexing_pingpong(void)
  * Stress Test: Portal Thread Multiplexing Affinity                           *
  *============================================================================*/
 
+#define PPORT(x) (tid + x * TEST_THREAD_MAX)
+
 /**
  * @brief Stress Test: Portal Thread Multiplexing Affinity
  */
@@ -2331,6 +2333,8 @@ PRIVATE void test_stress_portal_thread_multiplexing_affinity(void)
 	/* Join threads. */
 	for (int i = 1; i < TEST_THREAD_MAX; ++i)
 		test_assert(kthread_join(tid[i - 1], NULL) == 0);
+
+	test_assert(kthread_set_affinity(KTHREAD_AFFINITY_DEFAULT) == TEST_THREAD_AFFINITY);
 }
 
 /*============================================================================*

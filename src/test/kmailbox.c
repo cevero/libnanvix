@@ -1790,6 +1790,8 @@ static void test_stress_mailbox_thread_specified_affinity(void)
 	}
 	else if (local == MASTER_NODENUM)
 		do_thread_specified_affinity(0);
+
+	test_assert(kthread_set_affinity(KTHREAD_AFFINITY_DEFAULT) == TEST_THREAD_AFFINITY);
 }
 
 /*============================================================================*
@@ -2108,6 +2110,8 @@ PRIVATE void test_stress_mailbox_thread_multiplexing_pingpong(void)
  * Stress Test: Mailbox Thread Multiplexing Affinity                          *
  *============================================================================*/
 
+#define PPORT(x) (tid + x * TEST_THREAD_MAX)
+
 /**
  * @brief Stress Test: Mailbox Thread Multiplexing Ping-Pong
  */
@@ -2211,6 +2215,8 @@ PRIVATE void test_stress_mailbox_thread_multiplexing_affinity(void)
 	/* Join threads. */
 	for (int i = 1; i < TEST_THREAD_MAX; ++i)
 		test_assert(kthread_join(tid[i - 1], NULL) == 0);
+
+	test_assert(kthread_set_affinity(KTHREAD_AFFINITY_DEFAULT) == TEST_THREAD_AFFINITY);
 }
 
 /*============================================================================*
