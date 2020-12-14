@@ -135,6 +135,7 @@ void ___start(int argc, const char *argv[])
 			test_condition_variables();
 			test_mutex();
 			test_semaphore();
+			test_task_mgmt();
 
 		#ifndef __unix64__
 			test_perf();
