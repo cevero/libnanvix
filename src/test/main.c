@@ -132,11 +132,9 @@ void ___start(int argc, const char *argv[])
 			test_page_mgmt();
 			test_thread_mgmt();
 			test_thread_sleep();
-		#if (CORES_NUM > 1)
 			test_condition_variables();
 			test_mutex();
 			test_semaphore();
-		#endif
 
 		#ifndef __unix64__
 			test_perf();
