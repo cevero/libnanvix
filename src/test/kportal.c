@@ -1970,7 +1970,7 @@ PRIVATE void test_stress_portal_multiplexing_pingpong(void)
  * Stress Test: Thread synchronization                                        *
  *============================================================================*/
 
-PRIVATE struct fence _fence;
+PRIVATE struct fence_t _fence;
 
 /*============================================================================*
  * Stress Test: Portal Thread Multiplexing Broadcast                          *

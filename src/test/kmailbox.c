@@ -1641,7 +1641,7 @@ PRIVATE void test_stress_mailbox_multiplexing_pingpong(void)
  * Stress Test: Thread synchronization                                        *
  *============================================================================*/
 
-PRIVATE struct fence _fence;
+PRIVATE struct fence_t _fence;
 
 /*============================================================================*
  * Stress Test: Thread Specified Source                                       *
