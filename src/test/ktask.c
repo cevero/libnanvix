@@ -167,6 +167,22 @@ static int periodic(ktask_args_t * args)
 	return (TASK_RET_SUCCESS);
 }
 
+static int emission(ktask_args_t * args)
+{
+	int coreid = core_get_id();
+
+	test_assert(((int) args->arg0) == coreid);
+	test_assert(args->arg1 == 1);
+	test_assert(args->arg2 == 2);
+	test_assert(args->arg3 == 3);
+	test_assert(args->arg4 == 4);
+	test_assert(args->arg5 == 5);
+
+	kprintf("[task] Testing emission on core %d", coreid);
+
+	return (TASK_RET_SUCCESS);
+}
+
 /*============================================================================*
  * API Testing Units                                                          *
  *============================================================================*/
@@ -503,6 +519,35 @@ static void test_api_ktask_periodic(void)
 	test_assert(ktask_unlink(&t) == 0);
 }
 
+/**
+ * @brief API test for dispatch a task.
+ */
+static void test_api_ktask_emit(void)
+{
+	ktask_t t;
+
+	t.args.arg1 = 1;
+	t.args.arg2 = 2;
+	t.args.arg3 = 3;
+	t.args.arg4 = 4;
+	t.args.arg5 = 5;
+
+	/* Create the task. */
+	test_assert(ktask_create(&t, emission, &t.args, 10) == 0);
+
+	/* Emit the task. */
+	for (int coreid = 0; coreid < CORES_NUM; ++coreid)
+	{
+		t.args.arg0 = (word_t) coreid;
+
+		test_assert(ktask_emit(&t, coreid) == 0);
+		test_assert(ktask_wait(&t) == 0);
+	}
+
+	/* Unlink the task. */
+	test_assert(ktask_unlink(&t) == 0);
+}
+
 /*============================================================================*
  * Test Driver                                                                *
  *============================================================================*/
@@ -520,6 +565,7 @@ static struct test task_mgmt_tests_api[] = {
 	{ test_api_ktask_children,       "[test][task][api] task children       [passed]" },
 	{ test_api_ktask_parent,         "[test][task][api] task parent         [passed]" },
 	{ test_api_ktask_periodic,       "[test][task][api] task periodic       [passed]" },
+	{ test_api_ktask_emit,           "[test][task][api] task emit           [passed]" },
 	{ NULL,                           NULL                                            },
 };
 
