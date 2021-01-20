@@ -110,6 +110,36 @@ PUBLIC int ktask_dispatch(ktask_t * task)
 }
 
 /*============================================================================*
+ * ktask_emit()                                                               *
+ *============================================================================*/
+
+/*
+ * @see ktask_emit()
+ */
+PUBLIC int ktask_emit(ktask_t * task, int coreid)
+{
+	int ret;
+
+	/* Invalid task. */
+	if (!task || !WITHIN(coreid, 0, CORES_NUM))
+	{
+		errno = (-EINVAL);
+		return (-1);
+	}
+
+	ret = kcall2(NR_task_emit, (word_t) task, (word_t) coreid);
+
+	/* System call failed. */
+	if (ret < 0)
+	{
+		errno = -ret;
+		return (-1);
+	}
+
+	return (ret);
+}
+
+/*============================================================================*
  * ktask_wait()                                                               *
  *============================================================================*/
 
