@@ -52,6 +52,7 @@
 	extern int ktask_connect(ktask_t *, ktask_t *);
 	extern int ktask_disconnect(ktask_t *, ktask_t *);
 	extern int ktask_dispatch(ktask_t *);
+	extern int ktask_emit(ktask_t *, int coreid);
 	extern int ktask_wait(ktask_t *);
 	extern int ktask_continue(ktask_t * task);
 	extern int ktask_complete(ktask_t * task);
