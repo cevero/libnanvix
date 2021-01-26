@@ -178,8 +178,6 @@ static int emission(ktask_args_t * args)
 	test_assert(args->arg4 == 4);
 	test_assert(args->arg5 == 5);
 
-	kprintf("[task] Testing emission on core %d", coreid);
-
 	return (TASK_RET_SUCCESS);
 }
 
