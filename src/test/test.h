@@ -27,18 +27,18 @@
 
 	#include <nanvix/sys/thread.h>
 	#include <nanvix/sys/mutex.h>
+	#include <nanvix/sys/noc.h>
 
 	/**
-     * @brief Test's parameters
-     */
+	 * @brief Test's parameters
+	 */
 	/**@{*/
-    #define NR_NODES       2
-    #define MASTER_NODENUM 0
+	#define NR_NODES       2
+	#define MASTER_NODENUM PROCESSOR_NODENUM_MASTER
+	#define SLAVE_NODENUM  PROCESSOR_NODENUM_LEADER
 #ifdef __mppa256__
-	#define SLAVE_NODENUM  8
 	#define TEST_THREAD_NPORTS (K1BDP_CORES_NUM - 1)
 #else
-	#define SLAVE_NODENUM  1
 	#define TEST_THREAD_NPORTS (THREAD_MAX)
 #endif
 	#define NSETUPS          10
@@ -47,23 +47,23 @@
 	#define NCOMMS_AFFINITY  2
 	/**@}*/
 
-    /**
-     * @name Portal sizes.
-     */
+	/**
+	 * @name Portal sizes.
+	 */
 	/**@{*/
-    #define PORTAL_SIZE       (1 * KB)                             /**< Small size. */
+	#define PORTAL_SIZE       (1 * KB)                             /**< Small size. */
 	#define PORTAL_SIZE_LARGE (HAL_PORTAL_DATA_SIZE + PORTAL_SIZE) /**< Large size. */
 	/**@}*/
 
 	/**
-     * @brief Portal message size
-     */
-    #define MAILBOX_SIZE (KMAILBOX_MESSAGE_SIZE)
+	 * @brief Portal message size
+	 */
+	#define MAILBOX_SIZE (KMAILBOX_MESSAGE_SIZE)
 
-    /**
-     * @brief Max number of nodes involved.
-     */
-    #define MAX_NUM_NODES PROCESSOR_NOC_NODES_NUM
+	/**
+	 * @brief Max number of nodes involved.
+	 */
+	#define MAX_NUM_NODES PROCESSOR_NOC_NODES_NUM
 
 	/**
 	 * @brief Number of iterations in stress tests.
@@ -95,15 +95,17 @@
 	extern void nanvix_puts(const char *str);
 
 #if __TARGET_HAS_SYNC
-    /**
-     * @name Barrier functions
-     */
-    /**@{*/
+
+	/**
+	 * @name Barrier functions
+	 */
+	/**@{*/
 	extern void test_delay(int times, uint64_t cycles);
-    extern void test_barrier_nodes_setup(const int * nodes, int nnodes, int is_master);
-    extern void test_barrier_nodes(void);
-    extern void test_barrier_nodes_cleanup(void);
-    /**@}*/
+	extern void test_barrier_nodes_setup(const int * nodes, int nnodes, int is_master);
+	extern void test_barrier_nodes(void);
+	extern void test_barrier_nodes_cleanup(void);
+	/**@}*/
+
 #endif /* __TARGET_HAS_SYNC */
 
 	/**
@@ -148,8 +150,8 @@
 	}
 
 	/**
-     * @brief Horizontal line.
-     */
-    extern const char *HLINE;
+	 * @brief Horizontal line.
+	 */
+	extern const char *HLINE;
 
 #endif /* _TEST_H_  */
