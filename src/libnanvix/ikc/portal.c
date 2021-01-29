@@ -27,12 +27,13 @@
 #if __TARGET_HAS_PORTAL && !__NANVIX_IKC_USES_ONLY_MAILBOX
 
 #include <nanvix/sys/noc.h>
+#include <nanvix/sys/task.h>
 #include <posix/errno.h>
 
 /**
  * @brief Protection for allows variable.
  */
-PRIVATE spinlock_t kportal_lock = SPINLOCK_UNLOCKED;
+PRIVATE spinlock_t kportal_lock;
 
 /**
  * @brief Store allows information.
@@ -43,6 +44,20 @@ PRIVATE struct
 	int port;   /**< Remote port ID. */
 } kportal_allows[KPORTAL_MAX];
 
+/**
+ * @brief Maximum number of tasks.
+ */
+#define KPORTAL_USER_TASK_MAX 32
+
+/**
+ * @brief Tasks per operate.
+ */
+PRIVATE struct {
+	int portalid;
+	ktask_t operate;
+	ktask_t wait;
+} kportal_tasks[KPORTAL_USER_TASK_MAX];
+
 /*============================================================================*
  * kportal_create()                                                           *
  *============================================================================*/
@@ -52,7 +67,7 @@ PRIVATE struct
  * attaches it to the local port @p local_port in the local NoC node @p
  * local.
  */
-int kportal_create(int local, int local_port)
+PUBLIC int kportal_create(int local, int local_port)
 {
 	int ret;
 
@@ -85,7 +100,7 @@ int kportal_create(int local, int local_port)
  * @details The kportal_allow() function allow read data from a input portal
  * associated with the NoC node @p remote.
  */
-int kportal_allow(int portalid, int remote, int remote_port)
+PUBLIC int kportal_allow(int portalid, int remote, int remote_port)
 {
 	int ret;
 
@@ -115,7 +130,7 @@ int kportal_allow(int portalid, int remote, int remote_port)
  * @details The kportal_open() function opens an output portal to the remote
  * NoC node @p remote and attaches it to the local NoC node @p local.
  */
-int kportal_open(int local, int remote, int remote_port)
+PUBLIC int kportal_open(int local, int remote, int remote_port)
 {
 	int ret;
 
@@ -141,7 +156,7 @@ int kportal_open(int local, int remote, int remote_port)
  * @details The kportal_unlink() function removes and releases the underlying
  * resources associated to the input portal @p portalid.
  */
-int kportal_unlink(int portalid)
+PUBLIC int kportal_unlink(int portalid)
 {
 	int ret;
 
@@ -161,7 +176,7 @@ int kportal_unlink(int portalid)
  * @details The kportal_close() function closes and releases the
  * underlying resources associated to the output portal @p portalid.
  */
-int kportal_close(int portalid)
+PUBLIC int kportal_close(int portalid)
 {
 	int ret;
 
@@ -174,87 +189,274 @@ int kportal_close(int portalid)
 }
 
 /*============================================================================*
- * kportal_aread()                                                            *
+ * kportal_task_alloc()                                                       *
  *============================================================================*/
 
 /**
- * @details The kportal_aread() asynchronously read @p size bytes of
- * data pointed to by @p buffer from the input portal @p portalid.
+ * @brief Allocates a user task.
  */
-ssize_t kportal_aread(int portalid, void * buffer, size_t size)
+PRIVATE int kportal_task_alloc(int portalid)
 {
-	ssize_t ret;
+	int id = (-EINVAL);
 
-	/* Invalid buffer. */
-	if (buffer == NULL)
+	if (UNLIKELY(portalid < 0))
 		return (-EINVAL);
 
-	/* Invalid size. */
-	if (size == 0 || size > KPORTAL_MESSAGE_DATA_SIZE)
+	spinlock_lock(&kportal_lock);
+
+		for (int i = 0; i < KPORTAL_USER_TASK_MAX; ++i)
+		{
+			/* Each portalid only can use one task. */
+			if (UNLIKELY(kportal_tasks[i].portalid == portalid))
+			{
+				id = (-EINVAL);
+				break;
+			}
+
+			/* Looks for free tasks. */
+			if (UNLIKELY(id < 0 && kportal_tasks[i].portalid < 0))
+			{
+				id = i;
+				kportal_tasks[i].portalid = portalid;
+			}
+		}
+
+	spinlock_unlock(&kportal_lock);
+
+	return (id);
+}
+
+/*============================================================================*
+ * kportal_task_free()                                                        *
+ *============================================================================*/
+
+/**
+ * @brief Frees a user task.
+ */
+PRIVATE int kportal_task_free(int id)
+{
+	if (UNLIKELY(!WITHIN(id, 0, KPORTAL_USER_TASK_MAX)))
 		return (-EINVAL);
 
-	do
-	{
-		ret = kcall3(
-			NR_portal_aread,
-			(word_t) portalid,
-			(word_t) buffer,
-			(word_t) size);
-	} while ((ret == -EBUSY) || (ret == -ENOMSG));
+	spinlock_lock(&kportal_lock);
+		kportal_tasks[id].portalid      = -1;
+		kportal_tasks[id].operate.state = -1;
+		kportal_tasks[id].wait.state    = -1;
+	spinlock_unlock(&kportal_lock);
+
+	return (0);
+}
+
+/*============================================================================*
+ * kportal_task_search()                                                      *
+ *============================================================================*/
+
+/**
+ * @brief Search for a user task.
+ */
+PRIVATE int kportal_task_search(int portalid)
+{
+	int ret = (-EINVAL);
+
+	if (UNLIKELY(portalid < 0))
+		return (-EINVAL);
+
+	spinlock_lock(&kportal_lock);
+
+		for (int i = 0; i < KPORTAL_USER_TASK_MAX; ++i)
+		{
+			if (kportal_tasks[i].portalid != portalid)
+				continue;
+
+			ret = i;
+			break;
+		}
+
+	spinlock_unlock(&kportal_lock);
 
 	return (ret);
 }
 
 /*============================================================================*
- * kportal_awrite()                                                           *
+ * __kportal_aread()                                                          *
  *============================================================================*/
 
 /**
- * @details The kportal_awrite() asynchronously write @p size bytes
- * of data pointed to by @p buffer to the output portal @p portalid.
+ * @brief Generic task operate.
  */
-ssize_t kportal_awrite(int portalid, const void * buffer, size_t size)
-{
-	ssize_t ret;
-
-	/* Invalid buffer. */
-	if (buffer == NULL)
-		return (-EINVAL);
-
-	/* Invalid size. */
-	if (size == 0 || size > KPORTAL_MESSAGE_DATA_SIZE)
-		return (-EINVAL);
-
-	do
-	{
-		ret = kcall3(
-			NR_portal_awrite,
-			(word_t) portalid,
-			(word_t) buffer,
-			(word_t) size);
-	} while ((ret == -EACCES) || (ret == -EBUSY));
-
-	return (ret);
-}
-
-/*============================================================================*
- * kportal_wait()                                                             *
- *============================================================================*/
-
-/**
- * @details The kportal_wait() waits for asyncrhonous operations in
- * the input/output portal @p portalid to complete.
- */
-int kportal_wait(int portalid)
+PRIVATE int __kportal_operate(ktask_args_t * args)
 {
 	int ret;
 
-	ret = kcall1(
-		NR_portal_wait,
-		(word_t) portalid
+	ret = kcall3(
+		args->arg0,
+		args->arg1,
+		args->arg2,
+		args->arg3
 	);
 
-	return (ret);
+	if ((args->arg0 == NR_portal_awrite) && (ret == -EACCES || ret == -EBUSY))
+		return (TASK_RET_AGAIN);
+	else if ((args->arg0 == NR_portal_aread) && (ret == -EBUSY || ret == -ENOMSG))
+		return (TASK_RET_AGAIN);
+
+	args->ret = (ret);
+
+	if (ret < 0)
+		return (TASK_RET_ERROR);
+
+	return (TASK_RET_SUCCESS);
+}
+
+/*============================================================================*
+ * __kportal_wait()                                                          *
+ *============================================================================*/
+
+/**
+ * @brief Generic task waiting.
+ */
+PRIVATE int __kportal_wait(ktask_args_t * args)
+{
+	if ((args->ret = kcall1(args->arg0, args->arg1)) < 0)
+		return (TASK_RET_ERROR);
+
+	return (TASK_RET_SUCCESS);
+}
+
+/*============================================================================*
+ * kportal_operate()                                                          *
+ *============================================================================*/
+
+/**
+ * @details Generic user configuration.
+ */
+PRIVATE ssize_t kportal_operate(
+	int portalid,
+	const void * buffer,
+	size_t size,
+	word_t NR_operate
+)
+{
+	int tid;
+	struct task * operate;
+	struct task * wait;
+
+	/* Invalid buffer. */
+	if (!WITHIN(portalid, 0, KPORTAL_MAX))
+		return (-EINVAL);
+
+	/* Invalid buffer. */
+	if (buffer == NULL)
+		return (-EINVAL);
+
+	/* Invalid size. */
+	if (size == 0 || size > KPORTAL_MESSAGE_DATA_SIZE)
+		return (-EINVAL);
+
+	if ((tid = kportal_task_alloc(portalid)) < 0)
+		goto error0;
+
+	/* Gets tasks. */
+	operate = &kportal_tasks[tid].operate;
+	wait    = &kportal_tasks[tid].wait;
+
+	/* Build tasks arguments. */
+	operate->args.arg0 = NR_operate;
+	operate->args.arg1 = (word_t) portalid;
+	operate->args.arg2 = (word_t) buffer;
+	operate->args.arg3 = (word_t) size;
+	wait->args.arg0    = NR_portal_wait;
+	wait->args.arg1    = (word_t) portalid;
+
+	if (ktask_create(operate, __kportal_operate, NULL, 0) != 0)
+		goto error1;
+
+	if (ktask_create(wait, __kportal_wait, NULL, 0) != 0)
+		goto error1;
+
+	if (ktask_connect(operate, wait) != 0)
+		goto error1;
+
+	if (ktask_dispatch(operate) != 0)
+		goto error1;
+
+	return (size);
+
+error1:
+	KASSERT(kportal_task_free(tid) == 0);
+
+error0:
+	return (-EINVAL);
+}
+
+/*============================================================================*
+ * kportal_awrite()                                                          *
+ *============================================================================*/
+
+/**
+ * @brief The kportal_awrite() asynchronously write @p size bytes
+ * of data pointed to by @p buffer to the output portal @p portalid.
+ */
+PUBLIC ssize_t kportal_awrite(int portalid, const void * buffer, size_t size)
+{
+	return (
+		kportal_operate(
+			portalid,
+			buffer,
+			size,
+			NR_portal_awrite
+		)
+	);
+}
+
+/*============================================================================*
+ * kportal_aread()                                                           *
+ *============================================================================*/
+
+/**
+ * @brief The kportal_aread() asynchronously read @p size bytes
+ * of data pointed to by @p buffer to the input portal @p portalid.
+ */
+PUBLIC ssize_t kportal_aread(int portalid, const void * buffer, size_t size)
+{
+	return (
+		kportal_operate(
+			portalid,
+			buffer,
+			size,
+			NR_portal_aread
+		)
+	);
+}
+
+/*============================================================================*
+ * kportal_wait()                                                            *
+ *============================================================================*/
+
+/**
+ * @details The kportal_wait() waits for asyncrhonous operates in
+ * the input/output portal @p portalid to complete.
+ */
+PUBLIC int kportal_wait(int portalid)
+{
+	int ret;
+	int tid;
+
+	/* Invalid buffer. */
+	if (!WITHIN(portalid, 0, KPORTAL_MAX))
+		return (-EINVAL);
+
+	tid = kportal_task_search(portalid);
+
+	if ((ret = ktask_wait(&kportal_tasks[tid].operate)) < 0)
+		goto error;
+
+	ret = ktask_wait(&kportal_tasks[tid].wait);
+
+error:
+	KASSERT(kportal_task_free(tid) == 0);
+
+	return (ret > 0) ? (-EAGAIN) : (ret);
 }
 
 /*============================================================================*
@@ -265,7 +467,7 @@ int kportal_wait(int portalid)
  * @details The kportal_write() synchronously write @p size bytes of
  * data pointed to by @p buffer to the output portal @p portalid.
  */
-ssize_t kportal_write(int portalid, const void * buffer, size_t size)
+PUBLIC ssize_t kportal_write(int portalid, const void * buffer, size_t size)
 {
 	ssize_t ret;      /* Return value.               */
 	size_t n;         /* Size of current data piece. */
@@ -291,7 +493,7 @@ ssize_t kportal_write(int portalid, const void * buffer, size_t size)
 		if ((ret = kportal_awrite(portalid, buffer, n)) < 0)
 			return (ret);
 
-		/* Waits for the asynchronous operation to complete. */
+		/* Waits for the asynchronous operate to complete. */
 		if ((ret = kportal_wait(portalid)) != 0)
 			return (ret);
 
@@ -310,7 +512,7 @@ ssize_t kportal_write(int portalid, const void * buffer, size_t size)
  * @details The kportal_read() synchronously read @p size bytes of
  * data pointed to by @p buffer from the input portal @p portalid.
  */
-ssize_t kportal_read(int portalid, void * buffer, size_t size)
+PUBLIC ssize_t kportal_read(int portalid, void * buffer, size_t size)
 {
 	ssize_t ret;      /* Return value.               */
 	size_t n;         /* Size of current data piece. */
@@ -350,8 +552,8 @@ ssize_t kportal_read(int portalid, void * buffer, size_t size)
 			if ((ret = kportal_aread(portalid, buffer, n)) < 0)
 				return (ret);
 
-		/* Waits for the asynchronous operation to complete. */
-		} while ((ret = kportal_wait(portalid)) > 0);
+		/* Waits for the asynchronous operate to complete. */
+		} while ((ret = kportal_wait(portalid)) == (-EAGAIN));
 
 		/* Wait failed. */
 		if (ret < 0)
@@ -378,7 +580,7 @@ ssize_t kportal_read(int portalid, void * buffer, size_t size)
  * @details The kportal_ioctl() reads the measurement parameter associated
  * with the request id @p request of the portal @p portalid.
  */
-int kportal_ioctl(int portalid, unsigned request, ...)
+PUBLIC int kportal_ioctl(int portalid, unsigned request, ...)
 {
 	int ret;
 	va_list args;
@@ -411,6 +613,11 @@ int kportal_ioctl(int portalid, unsigned request, ...)
 PUBLIC void kportal_init(void)
 {
 	kprintf("[user][portal] Initializes portal module");
+
+	for (int i = 0; i < KPORTAL_USER_TASK_MAX; ++i)
+		kportal_tasks[i].portalid = -1;
+
+	spinlock_init(&kportal_lock);
 }
 
 #else
