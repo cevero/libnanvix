@@ -34,25 +34,11 @@
  */
 PRIVATE int __ktask_call1(word_t nr_syscall, word_t t)
 {
-	int ret;
-
 	/* Invalid task. */
 	if (!t)
-	{
-		errno = (-EINVAL);
-		return (-1);
-	}
+		return (-EINVAL);
 
-	ret = kcall1(nr_syscall, t);
-
-	/* System call failed. */
-	if (ret < 0)
-	{
-		errno = -ret;
-		return (-1);
-	}
-
-	return (ret);
+	return (kcall1(nr_syscall, t));
 }
 
 /*============================================================================*
@@ -64,25 +50,11 @@ PRIVATE int __ktask_call1(word_t nr_syscall, word_t t)
  */
 PRIVATE int __ktask_call2(word_t nr_syscall, word_t t0, word_t t1)
 {
-	int ret;
-
 	/* Invalid task. */
 	if (!t0 || !t1)
-	{
-		errno = (-EINVAL);
-		return (-1);
-	}
+		return (-EINVAL);
 
-	ret = kcall2(nr_syscall, t0, t1);
-
-	/* System call failed. */
-	if (ret < 0)
-	{
-		errno = -ret;
-		return (-1);
-	}
-
-	return (ret);
+	return (kcall2(nr_syscall, t0, t1));
 }
 
 /*============================================================================*
@@ -118,25 +90,11 @@ PUBLIC int ktask_dispatch(ktask_t * task)
  */
 PUBLIC int ktask_emit(ktask_t * task, int coreid)
 {
-	int ret;
-
 	/* Invalid task. */
 	if (!task || !WITHIN(coreid, 0, CORES_NUM))
-	{
-		errno = (-EINVAL);
-		return (-1);
-	}
+		return (-EINVAL);
 
-	ret = kcall2(NR_task_emit, (word_t) task, (word_t) coreid);
-
-	/* System call failed. */
-	if (ret < 0)
-	{
-		errno = -ret;
-		return (-1);
-	}
-
-	return (ret);
+	return (kcall2(NR_task_emit, (word_t) task, (word_t) coreid));
 }
 
 /*============================================================================*
