@@ -2383,7 +2383,9 @@ static struct test mailbox_tests_fault[] = {
 	{ test_fault_mailbox_null_write,         "[test][mailbox][fault] mailbox null write         [passed]" },
 	{ test_fault_mailbox_invalid_wait,       "[test][mailbox][fault] mailbox invalid wait       [passed]" },
 	{ test_fault_mailbox_invalid_ioctl,      "[test][mailbox][fault] mailbox invalid ioctl      [passed]" },
+#if 0
 	{ test_fault_mailbox_bad_mbxid,          "[test][mailbox][fault] mailbox bad mbxid          [passed]" },
+#endif
 	{ NULL,                                   NULL                                                        },
 };
 
