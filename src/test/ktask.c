@@ -203,7 +203,7 @@ static void test_api_ktask_create(void)
 	/* Arguments and returns. */
 	test_assert(t.fn == dummy);
 	test_assert((int) t.args.arg0 == TEST_TASK_SPECIFIC_VALUE);
-	test_assert((int) t.args.ret == (-EINVAL));
+	test_assert((int) t.args.ret == 0);
 
 	/* Dependency. */
 	test_assert(t.parents == 0);
@@ -367,7 +367,7 @@ static void test_api_ktask_dependendy(void)
 	test_assert(t1.parents == 1);
 	test_assert(t1.children.size == 0);
 
-	test_assert(ktask_dispatch(&t1) == (-1));
+	test_assert(ktask_dispatch(&t1) < 0);
 	test_assert(ktask_dispatch(&t0) == 0);
 	test_assert(ktask_wait(&t0) == 0);
 	test_assert(ktask_wait(&t1) == 0);
@@ -415,8 +415,8 @@ static void test_api_ktask_children(void)
 	test_assert(t2.parents == 1);
 	test_assert(t2.children.size == 0);
 
-	test_assert(ktask_dispatch(&t2) == (-1));
-	test_assert(ktask_dispatch(&t1) == (-1));
+	test_assert(ktask_dispatch(&t2) < 0);
+	test_assert(ktask_dispatch(&t1) < 0);
 	test_assert(ktask_dispatch(&t0) == 0);
 
 	test_assert(ktask_wait(&t1) == 0);
