@@ -44,19 +44,23 @@ PRIVATE struct
 	int port;   /**< Remote port ID. */
 } kportal_allows[KPORTAL_MAX];
 
-/**
- * @brief Maximum number of tasks.
- */
-#define KPORTAL_USER_TASK_MAX 32
+#if __NANVIX_USE_TASKS
 
-/**
- * @brief Tasks per operate.
- */
-PRIVATE struct {
-	int portalid;
-	ktask_t operate;
-	ktask_t wait;
-} kportal_tasks[KPORTAL_USER_TASK_MAX];
+	/**
+	 * @brief Maximum number of tasks.
+	 */
+	#define KPORTAL_USER_TASK_MAX 32
+
+	/**
+	 * @brief Tasks per operate.
+	 */
+	PRIVATE struct {
+		int portalid;
+		ktask_t operate;
+		ktask_t wait;
+	} kportal_tasks[KPORTAL_USER_TASK_MAX];
+
+#endif /* __NANVIX_USE_TASKS */
 
 /*============================================================================*
  * kportal_create()                                                           *
@@ -187,6 +191,8 @@ PUBLIC int kportal_close(int portalid)
 
 	return (ret);
 }
+
+#if __NANVIX_USE_TASKS
 
 /*============================================================================*
  * kportal_task_alloc()                                                       *
@@ -323,6 +329,8 @@ PRIVATE int __kportal_wait(ktask_args_t * args)
 	return (TASK_RET_SUCCESS);
 }
 
+#endif /* __NANVIX_USE_TASKS */
+
 /*============================================================================*
  * kportal_operate()                                                          *
  *============================================================================*/
@@ -337,6 +345,8 @@ PRIVATE ssize_t kportal_operate(
 	word_t NR_operate
 )
 {
+#if __NANVIX_USE_TASKS
+
 	int tid;
 	struct task * operate;
 	struct task * wait;
@@ -387,6 +397,39 @@ error1:
 
 error0:
 	return (-EINVAL);
+
+#else
+
+	ssize_t ret;
+
+	/* Invalid buffer. */
+	if (buffer == NULL)
+		return (-EINVAL);
+
+	/* Invalid size. */
+	if (size == 0 || size > KPORTAL_MESSAGE_DATA_SIZE)
+		return (-EINVAL);
+
+	do
+	{
+		ret = kcall3(
+			NR_operate,
+			(word_t) portalid,
+			(word_t) buffer,
+			(word_t) size);
+
+		if ((NR_operate == NR_portal_awrite) && (ret == -EACCES || ret == -EBUSY))
+			continue;
+		else if ((NR_operate == NR_portal_aread) && (ret == -EBUSY || ret == -ENOMSG))
+			continue;
+
+		break;
+
+	} while (true);
+
+	return (ret);
+
+#endif /* __NANVIX_USE_TASKS */
 }
 
 /*============================================================================*
@@ -440,6 +483,9 @@ PUBLIC ssize_t kportal_aread(int portalid, const void * buffer, size_t size)
 PUBLIC int kportal_wait(int portalid)
 {
 	int ret;
+
+#if __NANVIX_USE_TASKS
+
 	int tid;
 
 	/* Invalid buffer. */
@@ -455,6 +501,15 @@ PUBLIC int kportal_wait(int portalid)
 
 error:
 	KASSERT(kportal_task_free(tid) == 0);
+
+#else
+
+	ret = kcall1(
+		NR_portal_wait,
+		(word_t) portalid
+	);
+
+#endif /* __NANVIX_USE_TASKS */
 
 	return (ret > 0) ? (-EAGAIN) : (ret);
 }
@@ -614,8 +669,12 @@ PUBLIC void kportal_init(void)
 {
 	kprintf("[user][portal] Initializes portal module");
 
+#if __NANVIX_USE_TASKS
+
 	for (int i = 0; i < KPORTAL_USER_TASK_MAX; ++i)
 		kportal_tasks[i].portalid = -1;
+
+#endif
 
 	spinlock_init(&kportal_lock);
 }

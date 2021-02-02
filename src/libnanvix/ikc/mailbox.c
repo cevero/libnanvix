@@ -32,19 +32,23 @@
 #include <nanvix/sys/task.h>
 #include <posix/errno.h>
 
-/**
- * @brief Maximum of tasks.
- */
-#define KMAILBOX_USER_TASK_MAX 32
+#if __NANVIX_USE_TASKS
 
-/**
- * @brief Tasks per operate.
- */
-PRIVATE struct {
-	int mbxid;
-	ktask_t operate;
-	ktask_t wait;
-} kmailbox_tasks[KMAILBOX_USER_TASK_MAX];
+	/**
+	 * @brief Maximum of tasks.
+	 */
+	#define KMAILBOX_USER_TASK_MAX 32
+
+	/**
+	 * @brief Tasks per operate.
+	 */
+	PRIVATE struct {
+		int mbxid;
+		ktask_t operate;
+		ktask_t wait;
+	} kmailbox_tasks[KMAILBOX_USER_TASK_MAX];
+
+#endif
 
 /**
  * @brief Protections.
@@ -215,6 +219,8 @@ PUBLIC int kmailbox_close(int mbxid)
 	return (ret);
 }
 
+#if __NANVIX_USE_TASKS
+
 /*============================================================================*
  * kmailbox_task_alloc()                                                      *
  *============================================================================*/
@@ -348,6 +354,8 @@ PRIVATE int __kmailbox_wait(ktask_args_t * args)
 	return (TASK_RET_SUCCESS);
 }
 
+#endif /* __NANVIX_USE_TASKS */
+
 /*============================================================================*
  * kmailbox_operate()                                                          *
  *============================================================================*/
@@ -362,6 +370,8 @@ PRIVATE ssize_t kmailbox_operate(
 	word_t NR_operate
 )
 {
+#if __NANVIX_USE_TASKS
+
 	int tid;
 	struct task * operate;
 	struct task * wait;
@@ -412,7 +422,30 @@ error1:
 
 error0:
 	return (-EINVAL);
+
+#else
+
+	int ret;
+
+	/* Invalid buffer size. */
+	if ((size == 0) || (size > KMAILBOX_MESSAGE_SIZE))
+		return (-EINVAL);
+
+	do
+	{
+		ret = kcall3(
+			NR_operate,
+			(word_t) mbxid,
+			(word_t) buffer,
+			(word_t) size
+		);
+	} while ((ret == -EBUSY) || (ret == -EAGAIN) || (ret == -ENOMSG) || (ret == -ETIMEDOUT));
+
+	return (ret);
+
+#endif /* __NANVIX_USE_TASKS */
 }
+
 
 /*============================================================================*
  * kmailbox_awrite()                                                          *
@@ -465,6 +498,9 @@ PUBLIC ssize_t kmailbox_aread(int mbxid, const void * buffer, size_t size)
 PUBLIC int kmailbox_wait(int mbxid)
 {
 	int ret;
+
+#if __NANVIX_USE_TASKS
+
 	int tid;
 
 	/* Invalid buffer. */
@@ -480,6 +516,15 @@ PUBLIC int kmailbox_wait(int mbxid)
 
 error:
 	KASSERT(kmailbox_task_free(tid) == 0);
+
+#else
+
+	ret = kcall1(
+		NR_mailbox_wait,
+		(word_t) mbxid
+	);
+
+#endif /* __NANVIX_USE_TASKS */
 
 	return (ret > 0) ? (-EAGAIN) : (ret);
 }
@@ -701,8 +746,12 @@ PUBLIC void kmailbox_init(void)
 	mailbox_counters.nwrites  = 0ULL;
 #endif /* __NANVIX_IKC_USES_ONLY_MAILBOX */
 
+#if __NANVIX_USE_TASKS
+
 	for (int i = 0; i < KMAILBOX_USER_TASK_MAX; ++i)
 		kmailbox_tasks[i].mbxid = -1;
+
+#endif
 
 	spinlock_init(&kmailbox_lock);
 }
