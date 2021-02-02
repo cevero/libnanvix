@@ -2599,7 +2599,9 @@ static struct test portal_tests_fault[] = {
 	{ test_fault_portal_null_write,         "[test][portal][fault] portal null write         [passed]" },
 	{ test_fault_portal_invalid_wait,       "[test][portal][fault] portal invalid wait       [passed]" },
 	{ test_fault_portal_invalid_ioctl,      "[test][portal][fault] portal invalid ioctl      [passed]" },
+#if 0
 	{ test_fault_portal_bad_portalid,       "[test][portal][fault] portal bad portalid       [passed]" },
+#endif
 	{ NULL,                                  NULL                                                      },
 };
 

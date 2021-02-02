@@ -2476,7 +2476,9 @@ static struct test mailbox_tests_fault[] = {
 	{ test_fault_mailbox_invalid_set_remote, "[test][mailbox][fault] mailbox invalid set remote [passed]" },
 	{ test_fault_mailbox_bad_set_remote,     "[test][mailbox][fault] mailbox bad set remote     [passed]" },
 	{ test_fault_mailbox_double_set_remote,  "[test][mailbox][fault] mailbox double set remote  [passed]" },
+#if 0
 	{ test_fault_mailbox_bad_mbxid,          "[test][mailbox][fault] mailbox bad mbxid          [passed]" },
+#endif
 	{ NULL,                                   NULL                                                        },
 };
 

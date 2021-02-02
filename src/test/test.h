@@ -42,7 +42,7 @@
 	#define TEST_THREAD_NPORTS (THREAD_MAX)
 #endif
 	#define NSETUPS          10
-	#define NCOMMUNICATIONS  50
+	#define NCOMMUNICATIONS  25
 	#define NSETUPS_AFFINITY 1
 	#define NCOMMS_AFFINITY  2
 	/**@}*/
