@@ -262,6 +262,44 @@ static void test_api_kthread_affinity(void)
 #endif
 }
 
+/**
+ * @brief API test for thread stats.
+ */
+static void test_api_kthread_stats(void)
+{
+#if (CORE_SUPPORTS_MULTITHREADING)
+
+	kthread_t tid;
+	uint64_t t0 = 0ULL;
+	uint64_t t1 = 0ULL;
+
+	tid = kthread_self();
+
+#if __NANVIX_MICROKERNEL_THREAD_STATS
+
+	/* Gets old time. */
+	test_assert(kthread_stats(tid, &t0, KTHREAD_STATS_EXEC_TIME) == 0);
+
+	/* Reset time. */
+	test_assert(kthread_stats(tid, NULL, KTHREAD_STATS_EXEC_TIME) == 0);
+
+	/* Gets new time. */
+	test_assert(kthread_stats(tid, &t1, KTHREAD_STATS_EXEC_TIME) == 0);
+
+	test_assert(t0 != 0ULL);
+	test_assert(t1 != 0ULL);
+	test_assert(t1 < t0);
+
+#else
+
+	test_assert(kthread_stats(tid, &t0, KTHREAD_STATS_EXEC_TIME)  < 0);
+	test_assert(kthread_stats(tid, NULL, KTHREAD_STATS_EXEC_TIME) < 0);
+
+#endif
+
+#endif
+}
+
 /*============================================================================*
  * Fault Testing Units                                                        *
  *============================================================================*/
@@ -359,6 +397,26 @@ static void test_fault_kthread_affinity(void)
 #endif
 }
 
+/**
+ * @brief Fault test for thread stats.
+ */
+static void test_fault_kthread_stats(void)
+{
+#if (CORE_SUPPORTS_MULTITHREADING)
+
+	uint64_t t0 = 0ULL;
+
+	/* Invalid stat. */
+	test_assert(kthread_stats(kthread_self(), &t0, -1) < 0);
+
+	/* Invalid thread. */
+	test_assert(kthread_stats(-1, &t0, KTHREAD_STATS_EXEC_TIME) < 0);
+
+	/* All Invalid. */
+	test_assert(kthread_stats(-1, NULL, -1) < 0);
+
+#endif
+}
 /*============================================================================*
  * Stress Testing Units                                                       *
  *============================================================================*/
@@ -474,6 +532,7 @@ static struct test thread_mgmt_tests_api[] = {
 	{ test_api_kthread_create,   "[test][thread][api] thread creation/termination [passed]" },
 	{ test_api_kthread_yield,    "[test][thread][api] thread yield                [passed]" },
 	{ test_api_kthread_affinity, "[test][thread][api] thread affinity             [passed]" },
+	{ test_api_kthread_stats,    "[test][thread][api] thread stats                [passed]" },
 	{ NULL,                       NULL                                                      },
 };
 
@@ -486,6 +545,7 @@ static struct test thread_mgmt_tests_fault[] = {
 	{ test_fault_kthread_join_invalid,    "[test][thread][fault] invalid thread join   [passed]" },
 	{ test_fault_kthread_join_bad,        "[test][thread][fault] bad thread join       [passed]" },
 	{ test_fault_kthread_affinity,        "[test][thread][fault] bad affinity          [passed]" },
+	{ test_fault_kthread_stats,           "[test][thread][fault] bad stats             [passed]" },
 	{ NULL,                                NULL                                                  },
 };
 

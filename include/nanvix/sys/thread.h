@@ -47,6 +47,7 @@
 	extern int kthread_join(kthread_t, void **);
 	extern int kthread_yield(void);
 	extern int kthread_set_affinity(int);
+	extern int kthread_stats(kthread_t, uint64_t *, int);
 	/**@}*/
 
 	/**
