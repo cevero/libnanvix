@@ -183,6 +183,38 @@ int kthread_set_affinity(int new_affinity)
 }
 
 /*============================================================================*
+ * kthread_stats()                                                            *
+ *============================================================================*/
+
+/*
+ * @see sys_kthread_stats()
+ */
+int kthread_stats(
+	kthread_t tid,
+	uint64_t * buffer,
+	int stat
+)
+{
+	int ret;
+
+	ret = kcall3(
+		NR_thread_stats,
+		(word_t) tid,
+		(word_t) buffer,
+		(word_t) stat
+	);
+
+	/* System call failed. */
+	if (ret < 0)
+	{
+		errno = -ret;
+		return (-1);
+	}
+
+	return (ret);
+}
+
+/*============================================================================*
  * ksleep()                                                                   *
  *============================================================================*/
 
