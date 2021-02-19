@@ -53,7 +53,9 @@ static void test_api_tlb_shootdown(void)
 {
 	unsigned *pg;
 
+#if !__NANVIX_MICROKERNEL_STATIC_SCHED
 	KASSERT(kthread_set_affinity(1 << 1) == KTHREAD_AFFINITY_DEFAULT);
+#endif
 
 	pg = (unsigned *) UBASE_VIRT;
 
@@ -68,7 +70,9 @@ static void test_api_tlb_shootdown(void)
 
 	KASSERT(page_free(VADDR(pg)) == 0);
 
+#if !__NANVIX_MICROKERNEL_STATIC_SCHED
 	KASSERT(kthread_set_affinity(KTHREAD_AFFINITY_DEFAULT) == (1 << 1));
+#endif
 }
 
 static spinlock_t s0;
@@ -86,7 +90,9 @@ static void * test_api_tlb_shootdown_allocator(void * args)
 
 	UNUSED(args);
 
+#if !__NANVIX_MICROKERNEL_STATIC_SCHED
 	KASSERT(kthread_set_affinity(1 << CORE_T0) == KTHREAD_AFFINITY_DEFAULT);
+#endif
 
 	pg = (unsigned *) UBASE_VIRT;
 
@@ -108,7 +114,9 @@ static void * test_api_tlb_shootdown_allocator(void * args)
 
 	KASSERT(page_free(VADDR(pg)) == 0);
 
+#if !__NANVIX_MICROKERNEL_STATIC_SCHED
 	KASSERT(kthread_set_affinity(KTHREAD_AFFINITY_DEFAULT) == (1 << CORE_T0));
+#endif
 
 	return (NULL);
 }
@@ -119,7 +127,9 @@ static void * test_api_tlb_shootdown_releaser(void * args)
 
 	UNUSED(args);
 
+#if !__NANVIX_MICROKERNEL_STATIC_SCHED
 	KASSERT(kthread_set_affinity(1 << CORE_T1) == KTHREAD_AFFINITY_DEFAULT);
+#endif
 
 	pg = (unsigned *) UBASE_VIRT;
 
@@ -131,7 +141,9 @@ static void * test_api_tlb_shootdown_releaser(void * args)
 	/* Release t0. */
 	spinlock_unlock(&s0);
 
+#if !__NANVIX_MICROKERNEL_STATIC_SCHED
 	KASSERT(kthread_set_affinity(KTHREAD_AFFINITY_DEFAULT) == (1 << CORE_T1));
+#endif
 
 	return (NULL);
 }
@@ -143,7 +155,9 @@ static void * test_api_tlb_shootdown_handler(void * args)
 
 	UNUSED(args);
 
+#if !__NANVIX_MICROKERNEL_STATIC_SCHED
 	KASSERT(kthread_set_affinity(1 << CORE_T2) == KTHREAD_AFFINITY_DEFAULT);
+#endif
 
 	pg = (unsigned *) UBASE_VIRT;
 
@@ -163,7 +177,9 @@ static void * test_api_tlb_shootdown_handler(void * args)
 
 	KASSERT(exception_control(EXCEPTION_PAGE_FAULT, EXCP_ACTION_IGNORE) == 0);
 
+#if !__NANVIX_MICROKERNEL_STATIC_SCHED
 	KASSERT(kthread_set_affinity(KTHREAD_AFFINITY_DEFAULT) == (1 << CORE_T2));
+#endif
 
 	return (NULL);
 }

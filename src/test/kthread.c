@@ -249,7 +249,7 @@ static void test_api_kthread_yield(void)
  */
 static void test_api_kthread_affinity(void)
 {
-#if (CORE_SUPPORTS_MULTITHREADING)
+#if (CORE_SUPPORTS_MULTITHREADING && !__NANVIX_MICROKERNEL_STATIC_SCHED)
 
 	kthread_t tid;
 
@@ -351,7 +351,7 @@ static void test_fault_kthread_join_bad(void)
  */
 static void test_fault_kthread_affinity(void)
 {
-#if (CORE_SUPPORTS_MULTITHREADING)
+#if (CORE_SUPPORTS_MULTITHREADING && !__NANVIX_MICROKERNEL_STATIC_SCHED)
 
 	test_assert(kthread_set_affinity(0) < 0);
 	test_assert(kthread_set_affinity(1 << CORES_NUM) < 0);
