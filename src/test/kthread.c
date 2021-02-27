@@ -403,6 +403,7 @@ static void test_api_kthread_stats(void)
 
 	test_assert(kthread_stats(tid, &t0, KTHREAD_STATS_EXEC_TIME)  < 0);
 	test_assert(kthread_stats(tid, NULL, KTHREAD_STATS_EXEC_TIME) < 0);
+	UNUSED(t1);
 
 #endif
 
