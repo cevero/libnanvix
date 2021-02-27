@@ -616,7 +616,5 @@ void test_task_mgmt(void)
 		nanvix_puts(task_mgmt_tests_stress[i].name);
 	}
 
-#else
-
 #endif /* __NANVIX_USE_TASKS */
 }
