@@ -23,21 +23,28 @@
  */
 
 #include <nanvix/runtime/fence.h>
+#include <nanvix/sys/sync.h>
+#include <nanvix/sys/mutex.h>
 #include <posix/errno.h>
 
+#if (__TARGET_HAS_SYNC)
+
 /**
- * @see fence_init() in nanvix/runtime/fence.h
+ * @brief Initializes a fence.
+ *
+ * @param b      Target fence.
+ * @param ncores Number of cores in the fence.
  */
 PUBLIC void fence_init(struct fence_t *b, int ncores)
 {
 	b->ncores   = ncores;
 	b->nreached = 0;
 	b->release  = 0;
-	spinlock_init(&b->lock);
+	nanvix_mutex_init(&b->lock, NULL);
 }
 
 /**
- * @see fence() in nanvix/runtime/fence.h
+ * @brief Waits in a fence.
  */
 PUBLIC void fence(struct fence_t *b)
 {
@@ -45,7 +52,7 @@ PUBLIC void fence(struct fence_t *b)
 	int local_release;
 
 	/* Notifies thread reach. */
-	spinlock_lock(&b->lock);
+	nanvix_mutex_lock(&b->lock);
 
 		local_release = !b->release;
 
@@ -57,12 +64,14 @@ PUBLIC void fence(struct fence_t *b)
 			b->release  = local_release;
 		}
 
-	spinlock_unlock(&b->lock);
+	nanvix_mutex_unlock(&b->lock);
 
 	do
 	{
-		spinlock_lock(&b->lock);
+		nanvix_mutex_lock(&b->lock);
 			exit = (local_release == b->release);
-		spinlock_unlock(&b->lock);
+		nanvix_mutex_unlock(&b->lock);
 	} while (!exit);
 }
+
+#endif /* __TARGET_HAS_SYNC */

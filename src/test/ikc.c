@@ -51,15 +51,10 @@
  * Global variables                                                           *
  *============================================================================*/
 
-PRIVATE struct fence _fence;
+PRIVATE struct fence_t _fence;
 PRIVATE char message[PORTAL_SIZE_LARGE];
 PRIVATE char message_in[TEST_THREAD_MAX][PORTAL_SIZE];
 PRIVATE char message_out[PORTAL_SIZE];
-
-/**
- * @brief Simple fence used for thread synchronization.
- */
-PRIVATE struct fence_t _fence;
 
 /*============================================================================*
  * Stress Tests                                                               *

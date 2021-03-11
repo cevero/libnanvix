@@ -89,12 +89,7 @@ int nanvix_mutex_init(struct nanvix_mutex *m, struct nanvix_mutexattr *mattr)
 int nanvix_mutex_lock(struct nanvix_mutex *m)
 {
 	struct section_guard guard; /* Section guard. */
-
-	#if (__NANVIX_MUTEX_SLEEP)
-
-		kthread_t tid;
-
-	#endif /* __NANVIX_MUTEX_SLEEP */
+	kthread_t tid;
 
 	/* Invalid mutex. */
 	if (UNLIKELY(m == NULL))
@@ -239,6 +234,7 @@ int nanvix_mutex_trylock(struct nanvix_mutex *m)
 int nanvix_mutex_unlock(struct nanvix_mutex *m)
 {
 	struct section_guard guard; /* Section guard. */
+	kthread_t tid;
 
 	/* Invalid mutex. */
 	if (UNLIKELY(m == NULL))

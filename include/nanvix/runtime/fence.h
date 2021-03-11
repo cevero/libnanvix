@@ -32,10 +32,10 @@
 	 */
 	struct fence_t
 	{
-		int ncores;      /**< Number of cores in the fence.           */
-		int nreached;    /**< Number of cores that reached the fence. */
-		int release;     /**< Wait condition.                         */
-		spinlock_t lock; /**< Lock.                                   */
+		int ncores;               /**< Number of cores in the fence.           */
+		int nreached;             /**< Number of cores that reached the fence. */
+		int release;              /**< Wait condition.                         */
+		struct nanvix_mutex lock; /**< Lock.                                   */
 	};
 
 	/**
