@@ -31,6 +31,7 @@
 #define NANVIX_SYS_MAILBOX_H_
 
 	#include <nanvix/kernel/kernel.h>
+	#include <nanvix/sys/task.h>
 	#include <posix/sys/types.h>
 
 	/**
@@ -141,6 +142,21 @@
 	 * negative error code is returned instead.
 	 */
 	extern ssize_t kmailbox_read(int mbxid, void *buffer, size_t size);
+
+	/**
+	 * @brief Alloc a task to perform read from an input mailbox.
+	 */
+	extern ktask_t * kmailbox_read_task_alloc(int mbxid, void * buffer, size_t size);
+
+	/**
+	 * @brief Alloc a task to perform read from an input mailbox.
+	 */
+	extern ktask_t * kmailbox_write_task_alloc(int mbxid, void * buffer, size_t size);
+
+	/**
+	 * @brief Release a task to perform read from an input mailbox.
+	 */
+	extern int kmailbox_task_release(ktask_t * t);
 
 	/**
 	 * @brief Waits for an synchronous operation to complete.

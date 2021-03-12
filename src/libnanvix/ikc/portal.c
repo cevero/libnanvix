@@ -28,6 +28,7 @@
 
 #include <nanvix/sys/noc.h>
 #include <nanvix/sys/task.h>
+#include <nanvix/sys/thread.h>
 #include <posix/errno.h>
 
 /**
@@ -58,6 +59,8 @@ PRIVATE struct
 		int portalid;
 		ktask_t operate;
 		ktask_t wait;
+		bool op_completed;
+		bool wait_completed;
 	} kportal_tasks[KPORTAL_USER_TASK_MAX];
 
 #endif /* __NANVIX_USE_TASKS */
@@ -223,7 +226,9 @@ PRIVATE int kportal_task_alloc(int portalid)
 			if (UNLIKELY(id < 0 && kportal_tasks[i].portalid < 0))
 			{
 				id = i;
-				kportal_tasks[i].portalid = portalid;
+				kportal_tasks[i].portalid       = portalid;
+				kportal_tasks[i].op_completed   = false;
+				kportal_tasks[i].wait_completed = false;
 			}
 		}
 
@@ -245,9 +250,11 @@ PRIVATE int kportal_task_free(int id)
 		return (-EINVAL);
 
 	spinlock_lock(&kportal_lock);
-		kportal_tasks[id].portalid      = -1;
-		kportal_tasks[id].operate.state = -1;
-		kportal_tasks[id].wait.state    = -1;
+		kportal_tasks[id].portalid       = -1;
+		kportal_tasks[id].operate.state  = -1;
+		kportal_tasks[id].wait.state     = -1;
+		kportal_tasks[id].op_completed   = false;
+		kportal_tasks[id].wait_completed = false;
 	spinlock_unlock(&kportal_lock);
 
 	return (0);
@@ -487,6 +494,7 @@ PUBLIC int kportal_wait(int portalid)
 #if __NANVIX_USE_TASKS
 
 	int tid;
+	int (*wait_fn)(ktask_t *);
 
 	/* Invalid buffer. */
 	if (!WITHIN(portalid, 0, KPORTAL_MAX))
@@ -494,12 +502,29 @@ PUBLIC int kportal_wait(int portalid)
 
 	tid = kportal_task_search(portalid);
 
-	if ((ret = ktask_wait(&kportal_tasks[tid].operate)) < 0)
-		goto error;
+	wait_fn = (kthread_self() != KTHREAD_DISPATCHER_TID) ?
+		&ktask_wait : &ktask_trywait;
 
-	ret = ktask_wait(&kportal_tasks[tid].wait);
+	if (!kportal_tasks[tid].op_completed)
+	{
+		if ((ret = wait_fn(&kportal_tasks[tid].operate)) < 0)
+			goto error;
+
+		kportal_tasks[tid].op_completed = true;
+	}
+
+	if (!kportal_tasks[tid].wait_completed)
+	{
+		if ((ret = wait_fn(&kportal_tasks[tid].wait)) < 0)
+			goto error;
+
+		kportal_tasks[tid].wait_completed = true;
+	}
 
 error:
+	if (ret == -(EPROTO))
+		return (TASK_RET_AGAIN);
+
 	KASSERT(kportal_task_free(tid) == 0);
 
 #else
