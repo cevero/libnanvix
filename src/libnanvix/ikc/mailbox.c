@@ -30,6 +30,7 @@
 
 #include <nanvix/sys/noc.h>
 #include <nanvix/sys/task.h>
+#include <nanvix/sys/thread.h>
 #include <posix/errno.h>
 
 #if __NANVIX_USE_TASKS
@@ -42,10 +43,13 @@
 	/**
 	 * @brief Tasks per operate.
 	 */
-	PRIVATE struct {
-		int mbxid;
+	PRIVATE struct kmailbox_task_wrapper {
+		ktask_t requester;
 		ktask_t operate;
 		ktask_t wait;
+		int mbxid;
+		bool op_completed;
+		bool wait_completed;
 	} kmailbox_tasks[KMAILBOX_USER_TASK_MAX];
 
 #endif
@@ -242,7 +246,7 @@ PRIVATE int kmailbox_task_alloc(int mbxid)
 			/* Each mbxid only can use one task. */
 			if (UNLIKELY(kmailbox_tasks[i].mbxid == mbxid))
 			{
-				id = (-EINVAL);
+				id =  (kmailbox_tasks[i].requester.state != -1) ? (i) : (-EINVAL);
 				break;
 			}
 
@@ -250,7 +254,9 @@ PRIVATE int kmailbox_task_alloc(int mbxid)
 			if (UNLIKELY(id < 0 && kmailbox_tasks[i].mbxid < 0))
 			{
 				id = i;
-				kmailbox_tasks[i].mbxid = mbxid;
+				kmailbox_tasks[i].mbxid          = mbxid;
+				kmailbox_tasks[i].op_completed   = false;
+				kmailbox_tasks[i].wait_completed = false;
 			}
 		}
 
@@ -266,15 +272,25 @@ PRIVATE int kmailbox_task_alloc(int mbxid)
 /**
  * @brief Frees a user task.
  */
-PRIVATE int kmailbox_task_free(int id)
+PRIVATE int kmailbox_task_free(int id, bool release_req)
 {
 	if (UNLIKELY(!WITHIN(id, 0, KMAILBOX_USER_TASK_MAX)))
 		return (-EINVAL);
 
 	spinlock_lock(&kmailbox_lock);
-		kmailbox_tasks[id].mbxid         = -1;
-		kmailbox_tasks[id].operate.state = -1;
-		kmailbox_tasks[id].wait.state    = -1;
+
+		if (release_req)
+		{
+			kmailbox_tasks[id].mbxid           = -1;
+			kmailbox_tasks[id].requester.state = -1;
+		}
+
+		kmailbox_tasks[id].operate.state   = -1;
+		kmailbox_tasks[id].operate.state   = -1;
+		kmailbox_tasks[id].wait.state      = -1;
+		kmailbox_tasks[id].op_completed    = false;
+		kmailbox_tasks[id].wait_completed  = false;
+
 	spinlock_unlock(&kmailbox_lock);
 
 	return (0);
@@ -418,7 +434,7 @@ PRIVATE ssize_t kmailbox_operate(
 	return (size);
 
 error1:
-	KASSERT(kmailbox_task_free(tid) == 0);
+	KASSERT(kmailbox_task_free(tid, false) == 0);
 
 error0:
 	return (-EINVAL);
@@ -502,20 +518,41 @@ PUBLIC int kmailbox_wait(int mbxid)
 #if __NANVIX_USE_TASKS
 
 	int tid;
+	kthread_t self;
+	int (*wait_fn)(ktask_t *);
 
 	/* Invalid buffer. */
 	if (!WITHIN(mbxid, 0, KMAILBOX_MAX))
 		return (-EINVAL);
 
-	tid = kmailbox_task_search(mbxid);
+	tid  = kmailbox_task_search(mbxid);
+	self = kthread_self();
 
-	if ((ret = ktask_wait(&kmailbox_tasks[tid].operate)) < 0)
-		goto error;
+	wait_fn = (self != KTHREAD_DISPATCHER_TID) ?
+		&ktask_wait : &ktask_trywait;
 
-	ret = ktask_wait(&kmailbox_tasks[tid].wait);
+	if (!kmailbox_tasks[tid].op_completed)
+	{
+		if ((ret = wait_fn(&kmailbox_tasks[tid].operate)) < 0)
+			goto error;
+
+		kmailbox_tasks[tid].op_completed = true;
+	}
+
+	if (!kmailbox_tasks[tid].wait_completed)
+	{
+		if ((ret = wait_fn(&kmailbox_tasks[tid].wait)) < 0)
+			goto error;
+
+		kmailbox_tasks[tid].wait_completed = true;
+	}
 
 error:
-	KASSERT(kmailbox_task_free(tid) == 0);
+	if (ret == -(EPROTO))
+		return (ret);
+
+	if (self != KTHREAD_DISPATCHER_TID)
+		KASSERT(kmailbox_task_free(tid, true) == 0);
 
 #else
 
@@ -606,6 +643,140 @@ PUBLIC ssize_t kmailbox_read(int mbxid, void * buffer, size_t size)
 #endif /* __NANVIX_IKC_USES_ONLY_MAILBOX */
 
 	return (size);
+}
+
+/*============================================================================*
+ * kmailbox_read2()                                                           *
+ *============================================================================*/
+
+#define REQUEST_OP_READ  0
+#define REQUEST_OP_WRITE 1
+
+/**
+ * @brief Generic task operate.
+ */
+PRIVATE int __kmailbox_requester(ktask_args_t * args)
+{
+	/* Step. */
+	switch ((int) args->arg3)
+	{
+		/* Configure read. */
+		case 0:
+		{
+			if (args->arg4 == REQUEST_OP_READ)
+				args->ret = kmailbox_aread((int) args->arg0, (void *) args->arg1, (size_t) args->arg2);
+			else
+				args->ret = kmailbox_awrite((int) args->arg0, (const void *) args->arg1, (size_t) args->arg2);
+
+			if (args->ret < 0)
+				return (TASK_RET_ERROR);
+
+			args->arg3++;
+
+		} //! Goes to step 1
+
+		/* Wait operation. */
+		case 1:
+		{
+			args->ret = kmailbox_wait((int) args->arg0);
+
+			/* Trywait failed. */
+			if (args->ret == (-EPROTO))
+				return (TASK_RET_AGAIN);
+
+			/* Read a message that is not for me. */
+			if (args->ret == (-EAGAIN))
+			{
+				args->arg0 = 0;
+				return (TASK_RET_AGAIN);
+			}
+
+			args->arg3++;
+
+		} return ((args->ret >= 0) ? (TASK_RET_SUCCESS) : (TASK_RET_ERROR));
+
+		default:
+		{
+			args->ret = (-EINVAL);
+		} return (TASK_RET_ERROR);
+	}
+
+	return (TASK_RET_ERROR);
+}
+
+/**
+ * @details The kmailbox_read() synchronously read @p size bytes of
+ * data pointed to by @p buffer from the input mailbox @p mbxid.
+ */
+PUBLIC ktask_t * kmailbox_operation_task_alloc(
+	int mbxid,
+	void * buffer,
+	size_t size,
+	int operation
+)
+{
+	int tid;
+	int ret;
+	ktask_t * req;
+
+	/* Invalid buffer. */
+	if (buffer == NULL)
+		return (NULL);
+
+	/* Invalid buffer size. */
+	if ((size == 0) || (size > KMAILBOX_MESSAGE_SIZE))
+		return (NULL);
+
+	if ((tid = kmailbox_task_alloc(mbxid)) < 0)
+		return (NULL);
+
+	/* Gets tasks. */
+	req = &kmailbox_tasks[tid].requester;
+
+	/* Build tasks arguments. */
+	req->args.arg0 = (word_t) mbxid;
+	req->args.arg1 = (word_t) buffer;
+	req->args.arg2 = (word_t) size;
+	req->args.arg3 = (word_t) 0;         //! Step
+	req->args.arg4 = (word_t) operation; //! Requester
+
+	if ((ret = ktask_create(req, __kmailbox_requester, NULL, 0)) != 0)
+		KASSERT(kmailbox_task_free(tid, true) == 0);
+
+	return (ret >= 0) ? (req) : (NULL);
+}
+
+/**
+ * @details The kmailbox_read() synchronously read @p size bytes of
+ * data pointed to by @p buffer from the input mailbox @p mbxid.
+ */
+PUBLIC ktask_t * kmailbox_read_task_alloc(int mbxid, void * buffer, size_t size)
+{
+	return (kmailbox_operation_task_alloc(mbxid, buffer, size, REQUEST_OP_READ));
+}
+
+/**
+ * @details The kmailbox_read() synchronously read @p size bytes of
+ * data pointed to by @p buffer from the input mailbox @p mbxid.
+ */
+PUBLIC ktask_t * kmailbox_write_task_alloc(int mbxid, void * buffer, size_t size)
+{
+	return (kmailbox_operation_task_alloc(mbxid, buffer, size, REQUEST_OP_WRITE));
+}
+
+/*============================================================================*
+ * kmailbox_unlink()                                                          *
+ *============================================================================*/
+
+/**
+ * @details The kmailbox_unlink() function removes and releases the underlying
+ * resources associated to the input mailbox @p mbxid.
+ */
+PUBLIC int kmailbox_task_release(ktask_t * t)
+{
+	struct kmailbox_task_wrapper * _t = (struct kmailbox_task_wrapper *) t;
+
+	return (kmailbox_task_free((_t - kmailbox_tasks), true));
 }
 
 /*============================================================================*

@@ -311,6 +311,81 @@ static void test_api_mailbox_read_write(void)
 }
 
 /*============================================================================*
+ * API Test: Read Write 2 CC                                                  *
+ *============================================================================*/
+
+/**
+ * @brief API Test: Read Write 2 CC
+ */
+static void test_api_mailbox_read_write_with_tasks(void)
+{
+#if __NANVIX_USE_TASKS
+
+	int local;
+	int remote;
+	int mbx_in;
+	int mbx_out;
+	char message[KMAILBOX_MESSAGE_SIZE];
+	ktask_t * task;
+
+	local  = knode_get_num();
+	remote = (local == MASTER_NODENUM) ? SLAVE_NODENUM : MASTER_NODENUM;
+
+	test_assert((mbx_in = kmailbox_create(local, 0)) >= 0);
+	test_assert((mbx_out = kmailbox_open(remote, 0)) >= 0);
+
+	if (local == MASTER_NODENUM)
+	{
+		for (unsigned i = 0; i < NITERATIONS; i++)
+		{
+			kmemset(message, 1, KMAILBOX_MESSAGE_SIZE);
+
+			test_assert((task = kmailbox_write_task_alloc(mbx_out, message, KMAILBOX_MESSAGE_SIZE)) != NULL);
+			test_assert(ktask_dispatch(task) == 0);
+			test_assert(ktask_wait(task) == 0);
+			test_assert(kmailbox_task_release(task) == 0);
+
+			kmemset(message, 0, KMAILBOX_MESSAGE_SIZE);
+
+			test_assert((task= kmailbox_read_task_alloc(mbx_in, message, KMAILBOX_MESSAGE_SIZE)) != NULL);
+			test_assert(ktask_dispatch(task) == 0);
+			test_assert(ktask_wait(task) == 0);
+			test_assert(kmailbox_task_release(task) == 0);
+
+			for (unsigned j = 0; j < KMAILBOX_MESSAGE_SIZE; ++j)
+				test_assert(message[j] == 2);
+		}
+	}
+	else
+	{
+		for (unsigned i = 0; i < NITERATIONS; i++)
+		{
+			kmemset(message, 0, KMAILBOX_MESSAGE_SIZE);
+
+			test_assert((task = kmailbox_read_task_alloc(mbx_in, message, KMAILBOX_MESSAGE_SIZE)) != NULL);
+			test_assert(ktask_dispatch(task) == 0);
+			test_assert(ktask_wait(task) == 0);
+			test_assert(kmailbox_task_release(task) == 0);
+
+			for (unsigned j = 0; j < KMAILBOX_MESSAGE_SIZE; ++j)
+				test_assert(message[j] == 1);
+
+			kmemset(message, 2, KMAILBOX_MESSAGE_SIZE);
+
+			test_assert((task = kmailbox_write_task_alloc(mbx_out, message, KMAILBOX_MESSAGE_SIZE)) != NULL);
+			test_assert(ktask_dispatch(task) == 0);
+			test_assert(ktask_wait(task) == 0);
+			test_assert(kmailbox_task_release(task) == 0);
+		}
+	}
+
+	test_assert(kmailbox_close(mbx_out) == 0);
+	test_assert(kmailbox_unlink(mbx_in) == 0);
+
+#endif /* __NANVIX_USE_TASKS */
+}
+
+/*============================================================================*
  * API Test: Virtualization                                                   *
  *============================================================================*/
 
@@ -2344,19 +2419,20 @@ PRIVATE void test_stress_mailbox_thread_multiplexing_gather_local(void)
  * @brief API tests.
  */
 static struct test mailbox_tests_api[] = {
-	{ test_api_mailbox_create_unlink,      "[test][mailbox][api] mailbox create unlink      [passed]" },
-	{ test_api_mailbox_open_close,         "[test][mailbox][api] mailbox open close         [passed]" },
-	{ test_api_mailbox_get_volume,         "[test][mailbox][api] mailbox get volume         [passed]" },
-	{ test_api_mailbox_get_latency,        "[test][mailbox][api] mailbox get latency        [passed]" },
-	{ test_api_mailbox_get_counters,       "[test][mailbox][api] mailbox get counters       [passed]" },
-	{ test_api_mailbox_read_write,         "[test][mailbox][api] mailbox read write         [passed]" },
-	{ test_api_mailbox_virtualization,     "[test][mailbox][api] mailbox virtualization     [passed]" },
-	{ test_api_mailbox_multiplexation,     "[test][mailbox][api] mailbox multiplexation     [passed]" },
-	{ test_api_mailbox_multiplexation_2,   "[test][mailbox][api] mailbox multiplexation 2   [passed]" },
-	{ test_api_mailbox_multiplexation_3,   "[test][mailbox][api] mailbox multiplexation 3   [passed]" },
-	{ test_api_mailbox_pending_msg_unlink, "[test][mailbox][api] mailbox pending msg unlink [passed]" },
-	{ test_api_mailbox_msg_forwarding,     "[test][mailbox][api] mailbox message forwarding [passed]" },
-	{ NULL,                                 NULL                                                      },
+	{ test_api_mailbox_create_unlink,         "[test][mailbox][api] mailbox create unlink         [passed]" },
+	{ test_api_mailbox_open_close,            "[test][mailbox][api] mailbox open close            [passed]" },
+	{ test_api_mailbox_get_volume,            "[test][mailbox][api] mailbox get volume            [passed]" },
+	{ test_api_mailbox_get_latency,           "[test][mailbox][api] mailbox get latency           [passed]" },
+	{ test_api_mailbox_get_counters,          "[test][mailbox][api] mailbox get counters          [passed]" },
+	{ test_api_mailbox_read_write,            "[test][mailbox][api] mailbox read write            [passed]" },
+	{ test_api_mailbox_read_write_with_tasks, "[test][mailbox][api] mailbox read write with tasks [passed]" },
+	{ test_api_mailbox_virtualization,        "[test][mailbox][api] mailbox virtualization        [passed]" },
+	{ test_api_mailbox_multiplexation,        "[test][mailbox][api] mailbox multiplexation        [passed]" },
+	{ test_api_mailbox_multiplexation_2,      "[test][mailbox][api] mailbox multiplexation 2      [passed]" },
+	{ test_api_mailbox_multiplexation_3,      "[test][mailbox][api] mailbox multiplexation 3      [passed]" },
+	{ test_api_mailbox_pending_msg_unlink,    "[test][mailbox][api] mailbox pending msg unlink    [passed]" },
+	{ test_api_mailbox_msg_forwarding,        "[test][mailbox][api] mailbox message forwarding    [passed]" },
+	{ NULL,                                    NULL                                                         },
 };
 
 /**
