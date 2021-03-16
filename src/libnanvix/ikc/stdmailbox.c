@@ -92,6 +92,17 @@ int stdinbox_get(void)
 	return (__stdinbox[tid]);
 }
 
+/**
+ * @todo TODO: provide a detailed description for this function.
+ */
+int stdinbox_get_specific(int tid)
+{
+	if (tid > (THREAD_MAX + 1))
+		return (-1);
+
+	return (__stdinbox[tid]);
+}
+
 #else
 extern int make_iso_compilers_happy;
 #endif /* __TARGET_HAS_MAILBOX */

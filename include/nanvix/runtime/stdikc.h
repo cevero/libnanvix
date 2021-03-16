@@ -80,6 +80,13 @@
 	extern int stdinbox_get(void);
 
 	/**
+	 * @brief Gets the kernel standard input mailbox.
+	 *
+	 * @return The kernel standard input mailbox.
+	 */
+	extern int stdinbox_get_specific(int port);
+
+	/**
 	 * @brief Initializes the kernel standard mailbox facility.
 	 *
 	 * @return Upon successful completion, a non-negative number is
