@@ -1807,11 +1807,11 @@ error0:
 }
 
 /*============================================================================*
- * kportal_write()                                                            *
+ * kportal_get_port()                                                         *
  *============================================================================*/
 
 /**
- * @details Write details.
+ * @details Get port details.
  */
 PUBLIC int kportal_get_port(int portalid)
 {
