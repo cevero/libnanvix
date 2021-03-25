@@ -25,6 +25,7 @@
 #define __NANVIX_MICROKERNEL
 
 #include <nanvix/kernel/kernel.h>
+#include <nanvix/sys/noc.h>
 
 #if __TARGET_HAS_MAILBOX
 
@@ -1133,6 +1134,26 @@ int kmailbox_set_remote(int mbxid, int remote, int remote_port)
 		return (-EINVAL);
 
 	ret = kmailbox_ioctl(mbxid, KMAILBOX_IOCTL_SET_REMOTE, remote, remote_port);
+
+	return (ret);
+}
+
+/*============================================================================*
+ * kmailbox_get_port()                                                        *
+ *============================================================================*/
+
+/**
+ * @details Get port details.
+ */
+PUBLIC int kmailbox_get_port(int mbxid)
+{
+	int ret; /* Return value. */
+
+	/* Invalid portalid. */
+	if (!WITHIN(mbxid, 0, KMAILBOX_MAX))
+		return (-EINVAL);
+
+	ret = kcomm_get_port(mbxid, COMM_TYPE_MAILBOX);
 
 	return (ret);
 }
