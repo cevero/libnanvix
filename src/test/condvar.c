@@ -136,8 +136,8 @@ static struct test condition_variables_tests_api[] = {
  * @brief Stress tests.
  */
 static struct test condition_variables_tests_stress[] = {
-	{ test_stress_condvar, "[test][condvar][stress] condition variable multiple thread pairs [passed]" },
 	{ NULL,                NULL                                                        },
+	{ test_stress_condvar, "[test][condvar][stress] condition variable multiple thread pairs [passed]" },
 };
 
 #endif  /* CORES_NUM */
