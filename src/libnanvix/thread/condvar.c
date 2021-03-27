@@ -208,32 +208,63 @@ int nanvix_cond_signal(struct nanvix_cond_var *cond)
  */
 PUBLIC int nanvix_cond_broadcast(struct nanvix_cond_var *cond)
 {
+	int size;
+	int head = -1;
+
 	if (!cond)
 	{
 		kprintf("Invalid condition variable");
 		return (-EINVAL);
 	}
 
+	spinlock_lock(&cond->lock2);
+again:
+		spinlock_lock(&cond->lock);
+
+			/**
+			 * Remove the head of the queue.
+			 */
+			if (cond->size > 0)
+			{
+				head        = cond->tids[cond->begin];
+				cond->begin = (cond->begin + 1) % THREAD_MAX;
+				cond->size--;
+			}
+
+			size = cond->size;
+
+#if (!__NANVIX_CONDVAR_SLEEP)
+			cond->locked = false;
+#endif
+
+		spinlock_unlock(&cond->lock);
+
 #if (__NANVIX_CONDVAR_SLEEP)
-	again:
+		/**
+		 * May be we need try to wakeup a thread more than one time because it
+		 * is not an atomic sleep/wakeup.
+		 *
+		 * Obs.: We release the primary lock because we don't need garantee
+		 * that the head thread gets the mutex.
+		 */
+		if (head != -1)
+			while (LIKELY(kwakeup(head) != 0));
+#else
+		UNUSED(head);
+
+		bool exit;
+		do
+		{
+			spinlock_lock(&cond->lock);
+				exit = (cond->tids[cond->begin] == -1);
+			spinlock_unlock(&cond->lock);
+		} while (!exit);
 #endif  /* __NANVIX_CONDVAR_SLEEP */
 
-	spinlock_lock(&cond->lock);
+		if (size > 0)
+			goto again;
 
-		while (cond->tids[0] != -1)
-		{
-		#if (__NANVIX_CONDVAR_SLEEP)
-			if (kwakeup(cond->tids[0]) != 0)
-			{
-				spinlock_unlock(&cond->lock);
-				goto again;
-			}
-		#else
-			cond->locked = false;
-		#endif /* __NANVIX_CONDVAR_SLEEP */
-		}
-
-	spinlock_unlock(&cond->lock);
+	spinlock_unlock(&cond->lock2);
 
 	return (0);
 }
