@@ -47,7 +47,7 @@ export DOCKER ?= no
 export SUPPRESS_TESTS ?= no
 
 # Extra
-export ADDONS ?= -D__NANVIX_MICROKERNEL_STATIC_SCHED=1 -D__NANVIX_MICROKERNEL_THREAD_STATS=1
+export ADDONS ?= -D__NANVIX_MICROKERNEL_STATIC_SCHED=1
 
 #===============================================================================
 # Directories
