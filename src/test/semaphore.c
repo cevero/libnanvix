@@ -58,7 +58,7 @@ void *task(void *arg)
 static void test_stress_trywait(void)
 {
 	#if (THREAD_MAX > 2)
-		int iterations = 5000000/NTHREADS;
+		int iterations = 50000/NTHREADS;
 		kthread_t tids[NTHREADS];
 		nanvix_semaphore_init(&sem, 1);
 
