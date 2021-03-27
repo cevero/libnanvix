@@ -43,11 +43,6 @@
 /**@}*/
 
 /**
- * @brief Expected value used on thread return tests.
- */
-#define TEST_EXPECTED_VALUE 0xc0ffee
-
-/**
  * @brief Dummy task.
  *
  * @param arg Unused argument.
@@ -352,6 +347,9 @@ static void test_api_kthread_return_pointer(void)
 
 	/* The value must be the expected value. */
 	test_assert(*retval == TEST_EXPECTED_VALUE);
+
+#endif
+}
 
 /**
  * @brief API test for thread affinity.
