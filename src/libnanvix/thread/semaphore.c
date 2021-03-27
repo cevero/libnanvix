@@ -55,8 +55,14 @@ int nanvix_semaphore_init(struct nanvix_semaphore *sem, int val)
 
 	#if (__NANVIX_SEMAPHORE_SLEEP)
 
+		sem->begin = 0;
+		sem->end   = 0;
+		sem->size  = 0;
+
 		for (int i = 0; i < THREAD_MAX; i++)
 			sem->tids[i] = -1;
+
+		spinlock_init(&sem->lock2);
 
 	#endif /* __NANVIX_SEMAPHORE_SLEEP */
 
@@ -100,22 +106,6 @@ int nanvix_semaphore_down(struct nanvix_semaphore *sem)
 	{
 		spinlock_lock(&sem->lock);
 
-			#if (__NANVIX_SEMAPHORE_SLEEP)
-
-				/* Dequeue kernel thread. */
-				for (int i = 0; i < THREAD_MAX; i++)
-				{
-					if (sem->tids[i] == tid)
-					{
-						for (int j = i; j < (THREAD_MAX - 1); j++)
-							sem->tids[j] = sem->tids[j + 1];
-						sem->tids[THREAD_MAX - 1] = -1;
-						break;
-					}
-				}
-
-			#endif /* __NANVIX_SEMAPHORE_SLEEP */
-
 			/* Lock. */
 			if (sem->val > 0)
 			{
@@ -126,15 +116,11 @@ int nanvix_semaphore_down(struct nanvix_semaphore *sem)
 
 			#if (__NANVIX_SEMAPHORE_SLEEP)
 
-				/* Enqueue kernel thread. */
-				for (int i = 0; i < THREAD_MAX; i++)
-				{
-					if (sem->tids[i] == -1)
-					{
-						sem->tids[i] = tid;
-						break;
-					}
-				}
+				KASSERT(sem->size < 0);
+
+				sem->tids[sem->end] = tid;
+				sem->end          = (sem->end + 1) % THREAD_MAX;
+				sem->size++;
 
 			#endif /* __NANVIX_SEMAPHORE_SLEEP */
 
@@ -172,29 +158,42 @@ int nanvix_semaphore_up(struct nanvix_semaphore *sem)
 		return (-EINVAL);
 
 #if (__NANVIX_SEMAPHORE_SLEEP)
-
-again:
-
+	int head = -1;
+	spinlock_lock(&sem->lock2);
 #endif /* __NANVIX_SEMAPHORE_SLEEP */
 
-	spinlock_lock(&sem->lock);
+		spinlock_lock(&sem->lock);
 
-		#if (__NANVIX_SEMAPHORE_SLEEP)
+			sem->val++;
 
-			if (sem->tids[0] != -1)
-			{
-				if (kwakeup(sem->tids[0]) != 0)
+			#if (__NANVIX_SEMAPHORE_SLEEP)
+				/**
+				 * Remove the head of the queue.
+				 */
+				if (sem->size > 0)
 				{
-					spinlock_unlock(&sem->lock);
-					goto again;
+
+					head       = sem->tids[sem->begin];
+					sem->begin = (sem->begin + 1) % THREAD_MAX;
+					sem->size--;
 				}
-			}
+			#endif /* __NANVIX_SEMAPHORE_SLEEP */
 
-		#endif /* __NANVIX_SEMAPHORE_SLEEP */
+		spinlock_unlock(&sem->lock);
 
-		sem->val++;
+#if (__NANVIX_MUTEX_SLEEP)
+		/**
+		 * May be we need try to wakeup a thread more than one time because it
+		 * is not an atomic sleep/wakeup.
+		 *
+		 * Obs.: We release the primary lock because we don't need garantee
+		 * that the head thread gets the mutex.
+		 */
+		if (head != -1)
+			while (LIKELY(kwakeup(head) != 0));
 
-	spinlock_unlock(&sem->lock);
+	spinlock_unlock(&sem->lock2);
+#endif
 
 	return (0);
 }
@@ -244,7 +243,7 @@ int nanvix_semaphore_destroy(struct nanvix_semaphore *sem)
 
 	#if (__NANVIX_MUTEX_SLEEP)
 		/* The thread queue must be empty. */
-		KASSERT(sem->tids[0] == -1);
+		KASSERT(sem->size == 0);
 	#endif
 
 	/**
