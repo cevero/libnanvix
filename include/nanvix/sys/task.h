@@ -33,32 +33,45 @@
 	#include <nanvix/kernel/kernel.h>
 
 	/**
-	 * @brief Task Types
+	 * @brief Task Types.
 	 */
 	/**@{*/
 	typedef struct task ktask_t;
-	typedef struct task_args ktask_args_t;
-	typedef int (*ktask_fn)(ktask_args_t *);
+	typedef int (*ktask_fn)(word_t arg0, word_t arg1, word_t arg2);
 	/**@}*/
 
 	/**
-	 * @name Task Kernel Calls
+	 * @name Task Kernel Calls.
 	 *
 	 * @details Work in Progress.
 	 */
 	/**@{*/
-	#define ktask_create(task, fn, args, period) task_create(task, fn, args, period)
-	#define ktask_get_id(task)                   task_get_id(task)
-	#define ktask_get_return(task)               task_get_return(task)
+	#define ktask_get_id(task)             task_get_id(task)
+	#define ktask_get_return(task)         task_get_return(task)
+	#define ktask_get_period(task)         task_get_return(task)
+	#define ktask_set_period(task, period) task_set_period(task, period)
+
+	extern int ktask_create(ktask_t *, ktask_fn, int);
 	extern int ktask_unlink(ktask_t *);
 	extern int ktask_connect(ktask_t *, ktask_t *);
 	extern int ktask_disconnect(ktask_t *, ktask_t *);
-	extern int ktask_dispatch(ktask_t *);
-	extern int ktask_emit(ktask_t *, int coreid);
+
+	#define ktask_dispatch0(task)                   ktask_dispatch(task,    0,    0,    0)
+	#define ktask_dispatch1(task, arg0)             ktask_dispatch(task, arg0,    0,    0)
+	#define ktask_dispatch2(task, arg0, arg1)       ktask_dispatch(task, arg0, arg1,    0)
+	#define ktask_dispatch3(task, arg0, arg1, arg2) ktask_dispatch(task, arg0, arg1, arg2)
+	extern int ktask_dispatch(ktask_t *, word_t arg0, word_t arg1, word_t arg2);
+
+	#define ktask_emit0(task, coreid)                   ktask_emit(task, coreid,    0,    0,    0)
+	#define ktask_emit1(task, coreid, arg0)             ktask_emit(task, coreid, arg0,    0,    0)
+	#define ktask_emit2(task, coreid, arg0, arg1)       ktask_emit(task, coreid, arg0, arg1,    0)
+	#define ktask_emit3(task, coreid, arg0, arg1, arg2) ktask_emit(task, coreid, arg0, arg1, arg2)
+	extern int ktask_emit(ktask_t *, int coreid, word_t arg0, word_t arg1, word_t arg2);
+
 	extern int ktask_wait(ktask_t *);
 	extern int ktask_trywait(ktask_t *);
-	extern int ktask_continue(ktask_t * task);
-	extern int ktask_complete(ktask_t * task);
+	extern int ktask_continue(ktask_t *);
+	extern int ktask_complete(ktask_t *);
 	extern ktask_t * ktask_current(void);
 	/**@}*/
 

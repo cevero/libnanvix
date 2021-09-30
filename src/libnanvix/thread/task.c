@@ -58,6 +58,36 @@ PRIVATE int __ktask_call2(word_t nr_syscall, word_t t0, word_t t1)
 }
 
 /*============================================================================*
+ * ktask_current()                                                            *
+ *============================================================================*/
+
+PUBLIC ktask_t * ktask_current(void)
+{
+	ktask_t * curr = NULL;
+
+	if ( __ktask_call1(NR_task_current, (word_t) &curr) < 0)
+		return (NULL);
+
+	return (curr);
+}
+
+/*============================================================================*
+ * ktask_create()                                                             *
+ *============================================================================*/
+
+/*
+ * @see ktask_create()
+ */
+PUBLIC int ktask_create(ktask_t * task, ktask_fn fn, int period)
+{
+	/* Invalid task. */
+	if (task == NULL || fn == NULL)
+		return (-EINVAL);
+
+	return (kcall3(NR_task_create, (word_t) task, (word_t) fn, (word_t) period));
+}
+
+/*============================================================================*
  * ktask_unlink()                                                             *
  *============================================================================*/
 
@@ -76,9 +106,13 @@ PUBLIC int ktask_unlink(ktask_t * task)
 /*
  * @see ktask_dispatch()
  */
-PUBLIC int ktask_dispatch(ktask_t * task)
+PUBLIC int ktask_dispatch(ktask_t * task, word_t arg0, word_t arg1, word_t arg2)
 {
-	return (__ktask_call1(NR_task_dispatch, (word_t) task));
+	/* Invalid pointer. */
+	if (task == NULL)
+		return (-EINVAL);
+
+	return (kcall4(NR_task_dispatch, (word_t) task, arg0, arg1, arg2));
 }
 
 /*============================================================================*
@@ -88,13 +122,20 @@ PUBLIC int ktask_dispatch(ktask_t * task)
 /*
  * @see ktask_emit()
  */
-PUBLIC int ktask_emit(ktask_t * task, int coreid)
+PUBLIC int ktask_emit(ktask_t * task, int coreid, word_t arg0, word_t arg1, word_t arg2)
 {
-	/* Invalid task. */
-	if (!task || !WITHIN(coreid, 0, CORES_NUM))
+	/* Invalid arguments. */
+	if (task == NULL || !WITHIN(coreid, 0, CORES_NUM))
 		return (-EINVAL);
 
-	return (kcall2(NR_task_emit, (word_t) task, (word_t) coreid));
+	return (kcall5(
+		NR_task_emit,
+		(word_t) task,
+		(word_t) coreid,
+		arg0,
+		arg1,
+		arg2
+	));
 }
 
 /*============================================================================*
@@ -137,20 +178,6 @@ PUBLIC int ktask_continue(ktask_t * task)
 PUBLIC int ktask_complete(ktask_t * task)
 {
 	return (__ktask_call1(NR_task_complete, (word_t) task));
-}
-
-/*============================================================================*
- * ktask_current()                                                            *
- *============================================================================*/
-
-PUBLIC ktask_t * ktask_current(void)
-{
-	ktask_t * curr = NULL;
-
-	if ( __ktask_call1(NR_task_current, (word_t) &curr) < 0)
-		return (NULL);
-
-	return (curr);
 }
 
 /*============================================================================*
