@@ -35,7 +35,23 @@
 /**
  * @brief Specific value for tests.
  */
-#define TEST_TASK_SPECIFIC_VALUE 123
+#define TEST_TASK_SPECIFIC_VALUE 0xc0ffee
+
+/**
+ * @name Auxiliar variables.
+ */
+/**@{*/
+PRIVATE int task_value;
+PRIVATE int task_value2;
+/**@}*/
+
+/**
+ * @name Auxiliar synchronization.
+ */
+/**@{*/
+PRIVATE spinlock_t master_lock;
+PRIVATE spinlock_t slave_lock;
+/**@}*/
 
 /*============================================================================*
  * Test functions and variables.                                              *
@@ -68,15 +84,12 @@ PRIVATE int dummy(word_t arg0, word_t arg1, word_t arg2)
 	UNUSED(arg1);
 	UNUSED(arg2);
 
-	return (TASK_RET_SUCCESS);
+	return (0);
 }
 
 /*----------------------------------------------------------------------------*
  * Setter test.                                                               *
  *----------------------------------------------------------------------------*/
-
-PRIVATE int task_value;
-PRIVATE int task_value2;
 
 PRIVATE int setter(word_t arg0, word_t arg1, word_t arg2)
 {
@@ -85,18 +98,12 @@ PRIVATE int setter(word_t arg0, word_t arg1, word_t arg2)
 
 	task_value = (int) arg0;
 
-	//args->ret  = 0;
-	//ktask_current()->retval = 0;
-
-	return (TASK_RET_SUCCESS);
+	return (TEST_TASK_SPECIFIC_VALUE);
 }
 
 /*----------------------------------------------------------------------------*
  * Get current task test.                                                     *
  *----------------------------------------------------------------------------*/
-
-PRIVATE spinlock_t master_lock;
-PRIVATE spinlock_t slave_lock;
 
 PRIVATE int current_fn(word_t arg0, word_t arg1, word_t arg2)
 {
@@ -107,9 +114,7 @@ PRIVATE int current_fn(word_t arg0, word_t arg1, word_t arg2)
 	spinlock_unlock(&master_lock);
 	spinlock_lock(&slave_lock);
 
-	//args->ret = 0;
-
-	return (TASK_RET_SUCCESS);
+	return (0);
 }
 
 /*----------------------------------------------------------------------------*
@@ -123,9 +128,8 @@ PRIVATE int parent_simple(word_t arg0, word_t arg1, word_t arg2)
 	UNUSED(arg2);
 
 	task_value *= 5;
-	//args->ret   = 0;
 
-	return (TASK_RET_SUCCESS);
+	return (0);
 }
 
 PRIVATE int child_simple(word_t arg0, word_t arg1, word_t arg2)
@@ -135,9 +139,8 @@ PRIVATE int child_simple(word_t arg0, word_t arg1, word_t arg2)
 	UNUSED(arg2);
 
 	task_value /= 10;
-	//args->ret   =  0;
 
-	return (TASK_RET_SUCCESS);
+	return (0);
 }
 
 PRIVATE int parent_children(word_t arg0, word_t arg1, word_t arg2)
@@ -148,9 +151,8 @@ PRIVATE int parent_children(word_t arg0, word_t arg1, word_t arg2)
 
 	task_value  *= 5;
 	task_value2 /= 5;
-	//args->ret    = 0;
 
-	return (TASK_RET_SUCCESS);
+	return (0);
 }
 
 PRIVATE int child0_children(word_t arg0, word_t arg1, word_t arg2)
@@ -160,9 +162,8 @@ PRIVATE int child0_children(word_t arg0, word_t arg1, word_t arg2)
 	UNUSED(arg2);
 
 	task_value /= 10;
-	//args->ret   =  0;
 
-	return (TASK_RET_SUCCESS);
+	return (0);
 }
 
 PRIVATE int child1_children(word_t arg0, word_t arg1, word_t arg2)
@@ -173,7 +174,7 @@ PRIVATE int child1_children(word_t arg0, word_t arg1, word_t arg2)
 
 	task_value2 *= 2;
 
-	return (TASK_RET_SUCCESS);
+	return (0);
 }
 
 PRIVATE int parent0_parent(word_t arg0, word_t arg1, word_t arg2)
@@ -183,9 +184,8 @@ PRIVATE int parent0_parent(word_t arg0, word_t arg1, word_t arg2)
 	UNUSED(arg2);
 
 	task_value *= 5;
-	//args->ret   = (0);
 
-	return (TASK_RET_SUCCESS);
+	return (0);
 }
 
 PRIVATE int parent1_parent(word_t arg0, word_t arg1, word_t arg2)
@@ -195,9 +195,8 @@ PRIVATE int parent1_parent(word_t arg0, word_t arg1, word_t arg2)
 	UNUSED(arg2);
 
 	task_value2 /= 5;
-	//args->ret    = 0;
 
-	return (TASK_RET_SUCCESS);
+	return (0);
 }
 
 PRIVATE int child_parent(word_t arg0, word_t arg1, word_t arg2)
@@ -208,9 +207,8 @@ PRIVATE int child_parent(word_t arg0, word_t arg1, word_t arg2)
 
 	task_value  /= 10;
 	task_value2 *=  2;
-	//args->ret    =  0;
 
-	return (TASK_RET_SUCCESS);
+	return (0);
 }
 
 /*----------------------------------------------------------------------------*
@@ -222,10 +220,19 @@ PRIVATE int periodic(word_t arg0, word_t arg1, word_t arg2)
 	UNUSED(arg1);
 	UNUSED(arg2);
 
+	/**
+	 * The current ktask_exit does not immediately return like thread_exit. It
+	 * is used to set up management action after task conclusion or to pass
+	 * arguments to the children tasks.
+	 *
+	 * TODO: Next implementation must immediately return.
+	 */
 	if ((++task_value) < (int) arg0)
-		return (TASK_RET_AGAIN);
+		ktask_exit0(KTASK_MANAGEMENT_PERIODIC);
+	else
+		ktask_exit0(KTASK_MANAGEMENT_SUCCESS);
 
-	return (TASK_RET_SUCCESS);
+	return (0);
 }
 
 /*----------------------------------------------------------------------------*
@@ -240,7 +247,7 @@ PRIVATE int emission(word_t arg0, word_t arg1, word_t arg2)
 	test_assert(arg1 == 1);
 	test_assert(arg2 == 2);
 
-	return (TASK_RET_SUCCESS);
+	return (coreid);
 }
 
 /*============================================================================*
@@ -260,20 +267,19 @@ PRIVATE void test_api_ktask_create(void)
 
 	test_assert(ktask_create(&t, dummy, 0) == 0);
 
-	/* Configuration. */
-	test_assert(t.state == TASK_STATE_NOT_STARTED);
-	test_assert(t.id    != TASK_NULL_ID);
+		/* Internal values. */
+		test_assert(t.fn == dummy);
+		test_assert(t.state == TASK_STATE_NOT_STARTED);
+		test_assert(t.schedule_type == TASK_SCHEDULE_READY);
 
-	/* Arguments and returns. */
-	test_assert(t.fn == dummy);
-
-	/* Dependency. */
-	test_assert(t.parents == 0);
-	test_assert(t.children.size == 0);
+		/* External values. */
+		test_assert(ktask_get_id(&t) != TASK_NULL_ID);
+		test_assert(ktask_get_number_parents(&t) == 0);
+		test_assert(ktask_get_number_children(&t) == 0);
 
 	test_assert(ktask_unlink(&t) == 0);
 
-	test_assert(t.id == TASK_NULL_ID);
+	test_assert(ktask_get_id(&t) == TASK_NULL_ID);
 }
 
 /*----------------------------------------------------------------------------*
@@ -292,42 +298,48 @@ PRIVATE void test_api_ktask_connect(void)
 	test_assert(ktask_create(&t2, dummy, 0) == 0);
 	test_assert(ktask_create(&t3, dummy, 0) == 0);
 
-	test_assert(ktask_connect(&t1, &t2) == 0);
+	test_assert(ktask_connect(&t1, &t2, KTASK_DEPENDENCY_HARD) == 0);
 
-	/* Parent. */
-	test_assert(t1.parents == 0);
-	test_assert(t1.children.size == 1);
+		/* Parent t1. */
+		test_assert(ktask_get_number_parents(&t1) == 0);
+		test_assert(ktask_get_number_children(&t1) == 1);
 
-	/* Children. */
-	test_assert(t2.parents == 1);
-	test_assert(t2.children.size == 0);
+		/* Child t2. */
+		test_assert(ktask_get_number_parents(&t2) == 1);
+		test_assert(ktask_get_number_children(&t2) == 0);
 
-	test_assert(ktask_connect(&t1, &t3) == 0);
+	test_assert(ktask_connect(&t1, &t3, KTASK_DEPENDENCY_HARD) == 0);
 
-	/* Parent. */
-	test_assert(t1.parents == 0);
-	test_assert(t1.children.size == 2);
+		/* Parent t1. */
+		test_assert(ktask_get_number_parents(&t1) == 0);
+		test_assert(ktask_get_number_children(&t1) == 2);
 
-	/* Children. */
-	test_assert(t3.parents == 1);
-	test_assert(t3.children.size == 0);
+		/* Child t2. */
+		test_assert(ktask_get_number_parents(&t2) == 1);
+		test_assert(ktask_get_number_children(&t2) == 0);
 
-	test_assert(ktask_connect(&t0, &t1) == 0);
-	test_assert(ktask_connect(&t0, &t3) == 0);
+		/* Child t3. */
+		test_assert(ktask_get_number_parents(&t3) == 1);
+		test_assert(ktask_get_number_children(&t3) == 0);
 
-	/* Parent. */
-	test_assert(t0.parents == 0);
-	test_assert(t0.children.size == 2);
+	test_assert(ktask_connect(&t0, &t1, KTASK_DEPENDENCY_HARD) == 0);
+	test_assert(ktask_connect(&t0, &t3, KTASK_DEPENDENCY_HARD) == 0);
 
-	test_assert(t1.parents == 1);
-	test_assert(t1.children.size == 2);
+		/* Parent t0. */
+		test_assert(ktask_get_number_parents(&t0) == 0);
+		test_assert(ktask_get_number_children(&t0) == 2);
 
-	/* Children. */
-	test_assert(t2.parents == 1);
-	test_assert(t2.children.size == 0);
+		/* Parent and Child t1. */
+		test_assert(ktask_get_number_parents(&t1) == 1);
+		test_assert(ktask_get_number_children(&t1) == 2);
 
-	test_assert(t3.parents == 2);
-	test_assert(t3.children.size == 0);
+		/* Child t2. */
+		test_assert(ktask_get_number_parents(&t2) == 1);
+		test_assert(ktask_get_number_children(&t2) == 0);
+
+		/* Child t3. */
+		test_assert(ktask_get_number_parents(&t3) == 2);
+		test_assert(ktask_get_number_children(&t3) == 0);
 
 	test_assert(ktask_disconnect(&t0, &t3) == 0);
 	test_assert(ktask_disconnect(&t0, &t1) == 0);
@@ -356,18 +368,20 @@ PRIVATE void test_api_ktask_dispatch(void)
 	test_assert(ktask_create(&t, setter, 0) == 0);
 
 	test_assert(ktask_dispatch1(&t, TEST_TASK_SPECIFIC_VALUE) == 0);
-	test_assert(ktask_wait(&t) == 0);
+	test_assert(ktask_wait(&t) == TEST_TASK_SPECIFIC_VALUE);
 
-	/* Complete the task. */
-	test_assert(t.state   == TASK_STATE_COMPLETED);
-	test_assert(t.id      != TASK_NULL_ID);
-	test_assert(t.args[0] == TEST_TASK_SPECIFIC_VALUE);
-	test_assert(t.args[1] == 0);
-	test_assert(t.args[2] == 0);
-	test_assert(t.retval  == 0);
+		/* Internal values. */
+		test_assert(t.state   == TASK_STATE_COMPLETED);
+		test_assert(t.args[0] == TEST_TASK_SPECIFIC_VALUE);
+		test_assert(t.args[1] == 0);
+		test_assert(t.args[2] == 0);
 
-	/* Check the value. */
-	test_assert(task_value == TEST_TASK_SPECIFIC_VALUE);
+		/* External values. */
+		test_assert(ktask_get_id(&t)         != TASK_NULL_ID);
+		test_assert(ktask_get_return(&t) == TEST_TASK_SPECIFIC_VALUE);
+
+		/* Check the value. */
+		test_assert(task_value == TEST_TASK_SPECIFIC_VALUE);
 
 	test_assert(ktask_unlink(&t) == 0);
 }
@@ -429,13 +443,13 @@ PRIVATE void test_api_ktask_current(void)
 }
 
 /*----------------------------------------------------------------------------*
- * test_api_ktask_dependendy()                                                *
+ * test_api_ktask_hard_dependendy()                                           *
  *----------------------------------------------------------------------------*/
 
 /**
- * @brief API test for dispatch tasks with dependency.
+ * @brief API test for dispatch tasks with hard dependency.
  */
-PRIVATE void test_api_ktask_dependendy(void)
+PRIVATE void test_api_ktask_hard_dependendy(void)
 {
 	ktask_t t0, t1;
 
@@ -444,32 +458,77 @@ PRIVATE void test_api_ktask_dependendy(void)
 	test_assert(ktask_create(&t0, parent_simple, 0) == 0);
 	test_assert(ktask_create(&t1, child_simple, 0) == 0);
 
-	test_assert(ktask_connect(&t0, &t1) == 0);
+	test_assert(ktask_connect(&t0, &t1, KTASK_DEPENDENCY_HARD) == 0);
 
-	/* Parent. */
-	test_assert(t0.parents == 0);
-	test_assert(t0.children.size == 1);
+		/* Parent. */
+		test_assert(ktask_get_number_parents(&t0) == 0);
+		test_assert(ktask_get_number_children(&t0) == 1);
 
-	/* Children. */
-	test_assert(t1.parents == 1);
-	test_assert(t1.children.size == 0);
+		/* Children. */
+		test_assert(ktask_get_number_parents(&t1) == 1);
+		test_assert(ktask_get_number_children(&t1) == 0);
 
-	test_assert(ktask_dispatch0(&t1) < 0);
 	test_assert(ktask_dispatch0(&t0) == 0);
 	test_assert(ktask_wait(&t0) == 0);
 	test_assert(ktask_wait(&t1) == 0);
 
-	test_assert(task_value == 10);
+		test_assert(task_value == 10);
 
-	/* Parent. */
-	test_assert(t0.parents == 0);
-	test_assert(t0.children.size == 0);
+		/* Parent. */
+		test_assert(ktask_get_number_parents(&t0) == 0);
+		test_assert(ktask_get_number_children(&t0) == 1);
 
-	/* Children. */
-	test_assert(t1.parents == 0);
-	test_assert(t1.children.size == 0);
+		/* Children. */
+		test_assert(ktask_get_number_parents(&t1) == 1);
+		test_assert(ktask_get_number_children(&t1) == 0);
 
-	test_assert(ktask_disconnect(&t0, &t1) < 0);
+	test_assert(ktask_disconnect(&t0, &t1) == 0);
+
+	test_assert(ktask_unlink(&t0) == 0);
+	test_assert(ktask_unlink(&t1) == 0);
+}
+
+/*----------------------------------------------------------------------------*
+ * test_api_ktask_soft_dependendy()                                           *
+ *----------------------------------------------------------------------------*/
+
+/**
+ * @brief API test for dispatch tasks with soft dependency.
+ */
+PRIVATE void test_api_ktask_soft_dependendy(void)
+{
+	ktask_t t0, t1;
+
+	task_value = 20;
+
+	test_assert(ktask_create(&t0, parent_simple, 0) == 0);
+	test_assert(ktask_create(&t1, child_simple, 0) == 0);
+
+	test_assert(ktask_connect(&t0, &t1, KTASK_DEPENDENCY_SOFT) == 0);
+
+		/* Parent. */
+		test_assert(ktask_get_number_parents(&t0) == 0);
+		test_assert(ktask_get_number_children(&t0) == 1);
+
+		/* Children. */
+		test_assert(ktask_get_number_parents(&t1) == 1);
+		test_assert(ktask_get_number_children(&t1) == 0);
+
+	test_assert(ktask_dispatch0(&t0) == 0);
+	test_assert(ktask_wait(&t0) == 0);
+	test_assert(ktask_wait(&t1) == 0);
+
+		test_assert(task_value == 10);
+
+		/* Parent. */
+		test_assert(ktask_get_number_parents(&t0) == 0);
+		test_assert(ktask_get_number_children(&t0) == 0);
+
+		/* Children. */
+		test_assert(ktask_get_number_parents(&t1) == 0);
+		test_assert(ktask_get_number_children(&t1) == 0);
+
+	test_assert(ktask_disconnect(&t0, &t1) != 0);
 
 	test_assert(ktask_unlink(&t0) == 0);
 	test_assert(ktask_unlink(&t1) == 0);
@@ -493,41 +552,31 @@ PRIVATE void test_api_ktask_children(void)
 	test_assert(ktask_create(&t1, child0_children, 0) == 0);
 	test_assert(ktask_create(&t2, child1_children, 0) == 0);
 
-	test_assert(ktask_connect(&t0, &t1) == 0);
-	test_assert(ktask_connect(&t0, &t2) == 0);
+	test_assert(ktask_connect(&t0, &t1, KTASK_DEPENDENCY_HARD) == 0);
+	test_assert(ktask_connect(&t0, &t2, KTASK_DEPENDENCY_HARD) == 0);
 
-	/* Parent. */
-	test_assert(t0.parents == 0);
-	test_assert(t0.children.size == 2);
+		/* Parent. */
+		test_assert(ktask_get_number_parents(&t0) == 0);
+		test_assert(ktask_get_number_children(&t0) == 2);
 
-	/* Children. */
-	test_assert(t1.parents == 1);
-	test_assert(t1.children.size == 0);
-	test_assert(t2.parents == 1);
-	test_assert(t2.children.size == 0);
+		/* Children. */
+		test_assert(ktask_get_number_parents(&t1) == 1);
+		test_assert(ktask_get_number_children(&t1) == 0);
+		test_assert(ktask_get_number_parents(&t2) == 1);
+		test_assert(ktask_get_number_children(&t2) == 0);
 
-	test_assert(ktask_dispatch0(&t2) < 0);
-	test_assert(ktask_dispatch0(&t1) < 0);
 	test_assert(ktask_dispatch0(&t0) == 0);
 
 	test_assert(ktask_wait(&t1) == 0);
-	test_assert(task_value == 10);
+
+		test_assert(task_value == 10);
 
 	test_assert(ktask_wait(&t2) == 0);
-	test_assert(task_value2 == 8);
 
-	/* Parent. */
-	test_assert(t0.parents == 0);
-	test_assert(t0.children.size == 0);
+		test_assert(task_value2 == 8);
 
-	/* Children. */
-	test_assert(t1.parents == 0);
-	test_assert(t1.children.size == 0);
-	test_assert(t2.parents == 0);
-	test_assert(t2.children.size == 0);
-
-	test_assert(ktask_disconnect(&t0, &t2) < 0);
-	test_assert(ktask_disconnect(&t0, &t1) < 0);
+	test_assert(ktask_disconnect(&t0, &t2) == 0);
+	test_assert(ktask_disconnect(&t0, &t1) == 0);
 
 	test_assert(ktask_unlink(&t0) == 0);
 	test_assert(ktask_unlink(&t1) == 0);
@@ -552,39 +601,58 @@ PRIVATE void test_api_ktask_parent(void)
 	test_assert(ktask_create(&t1, parent1_parent, 0) == 0);
 	test_assert(ktask_create(&t2, child_parent, 0) == 0);
 
-	test_assert(ktask_connect(&t0, &t2) == 0);
-	test_assert(ktask_connect(&t1, &t2) == 0);
+	test_assert(ktask_connect(&t0, &t2, KTASK_DEPENDENCY_SOFT) == 0);
+	test_assert(ktask_connect(&t1, &t2, KTASK_DEPENDENCY_HARD) == 0);
 
-	/* Parent. */
-	test_assert(t0.parents == 0);
-	test_assert(t0.children.size == 1);
-	test_assert(t1.parents == 0);
-	test_assert(t1.children.size == 1);
+		/* Parent. */
+		test_assert(ktask_get_number_parents(&t0) == 0);
+		test_assert(ktask_get_number_children(&t0) == 1);
+		test_assert(ktask_get_number_parents(&t1) == 0);
+		test_assert(ktask_get_number_children(&t1) == 1);
 
-	/* Children. */
-	test_assert(t2.parents == 2);
-	test_assert(t2.children.size == 0);
+		/* Children. */
+		test_assert(ktask_get_number_parents(&t2) == 2);
+		test_assert(ktask_get_number_children(&t2) == 0);
 
 	test_assert(ktask_dispatch0(&t0) == 0);
 	test_assert(ktask_wait(&t0) == 0);
 
-	test_assert(t0.parents == 0);
-	test_assert(t0.children.size == 0);
-	test_assert(t2.parents == 1);
-	test_assert(t2.state == TASK_STATE_NOT_STARTED);
+		/* Current task states. */
+		test_assert(t0.state == TASK_STATE_COMPLETED);
+		test_assert(t1.state == TASK_STATE_NOT_STARTED);
+		test_assert(t2.state == TASK_STATE_NOT_STARTED);
+
+		/* Parent. */
+		test_assert(ktask_get_number_parents(&t0) == 0);
+		test_assert(ktask_get_number_children(&t0) == 0);
+		test_assert(ktask_get_number_parents(&t1) == 0);
+		test_assert(ktask_get_number_children(&t1) == 1);
+
+		/* Children. */
+		test_assert(ktask_get_number_parents(&t2) == 1);
+		test_assert(ktask_get_number_children(&t2) == 0);
 
 	test_assert(ktask_dispatch0(&t1) == 0);
 	test_assert(ktask_wait(&t1) == 0);
 
 	test_assert(ktask_wait(&t2) == 0);
-	test_assert(task_value == 10);
-	test_assert(task_value2 == 8);
 
-	test_assert(t1.parents == 0);
-	test_assert(t1.children.size == 0);
+		/* Check values. */
+		test_assert(task_value == 10);
+		test_assert(task_value2 == 8);
 
-	test_assert(ktask_disconnect(&t1, &t2) < 0);
+		/* Parent. */
+		test_assert(ktask_get_number_parents(&t0) == 0);
+		test_assert(ktask_get_number_children(&t0) == 0);
+		test_assert(ktask_get_number_parents(&t1) == 0);
+		test_assert(ktask_get_number_children(&t1) == 1);
+
+		/* Children. */
+		test_assert(ktask_get_number_parents(&t2) == 1);
+		test_assert(ktask_get_number_children(&t2) == 0);
+
 	test_assert(ktask_disconnect(&t0, &t2) < 0);
+	test_assert(ktask_disconnect(&t1, &t2) == 0);
 
 	test_assert(ktask_unlink(&t0) == 0);
 	test_assert(ktask_unlink(&t1) == 0);
@@ -592,13 +660,13 @@ PRIVATE void test_api_ktask_parent(void)
 }
 
 /*----------------------------------------------------------------------------*
- * test_api_ktask_periodic()                                                  *
+ * test_api_ktask_exit_periodic()                                             *
  *----------------------------------------------------------------------------*/
 
 /**
  * @brief API test for dispatch a task.
  */
-PRIVATE void test_api_ktask_periodic(void)
+PRIVATE void test_api_ktask_exit_periodic(void)
 {
 	ktask_t t;
 
@@ -627,13 +695,13 @@ PRIVATE void test_api_ktask_emit(void)
 	ktask_t t;
 
 	/* Create the task. */
-	test_assert(ktask_create(&t, emission, 10) == 0);
+	test_assert(ktask_create(&t, emission, 0) == 0);
 
 	/* Emit the task. */
 	for (int coreid = 0; coreid < CORES_NUM; ++coreid)
 	{
 		test_assert(ktask_emit3(&t, coreid, coreid, 1, 2) == 0);
-		test_assert(ktask_wait(&t) == 0);
+		test_assert(ktask_wait(&t) == coreid);
 	}
 
 	/* Unlink the task. */
@@ -648,31 +716,32 @@ PRIVATE void test_api_ktask_emit(void)
  * @brief API tests.
  */
 PRIVATE struct test task_mgmt_tests_api[] = {
-	{ test_api_ktask_create,         "[test][task][api] task create         [passed]" },
-	{ test_api_ktask_connect,        "[test][task][api] task connect        [passed]" },
-	{ test_api_ktask_dispatch,       "[test][task][api] task dispatch       [passed]" },
-	{ test_api_ktask_identification, "[test][task][api] task identification [passed]" },
-	{ test_api_ktask_current,        "[test][task][api] task current        [passed]" },
-	{ test_api_ktask_dependendy,     "[test][task][api] task dependency     [passed]" },
-	{ test_api_ktask_children,       "[test][task][api] task children       [passed]" },
-	{ test_api_ktask_parent,         "[test][task][api] task parent         [passed]" },
-	{ test_api_ktask_periodic,       "[test][task][api] task periodic       [passed]" },
-	{ test_api_ktask_emit,           "[test][task][api] task emit           [passed]" },
-	{ NULL,                           NULL                                            },
+	{ test_api_ktask_create,          "[test][task][api] task create          [passed]" },
+	{ test_api_ktask_connect,         "[test][task][api] task connect         [passed]" },
+	{ test_api_ktask_dispatch,        "[test][task][api] task dispatch        [passed]" },
+	{ test_api_ktask_identification,  "[test][task][api] task identification  [passed]" },
+	{ test_api_ktask_current,         "[test][task][api] task current         [passed]" },
+	{ test_api_ktask_hard_dependendy, "[test][task][api] task hard dependency [passed]" },
+	{ test_api_ktask_soft_dependendy, "[test][task][api] task soft dependency [passed]" },
+	{ test_api_ktask_children,        "[test][task][api] task children        [passed]" },
+	{ test_api_ktask_parent,          "[test][task][api] task parent          [passed]" },
+	{ test_api_ktask_exit_periodic,   "[test][task][api] task exit periodic   [passed]" },
+	{ test_api_ktask_emit,            "[test][task][api] task emit            [passed]" },
+	{ NULL,                            NULL                                             },
 };
 
 /**
  * @brief Fault tests.
  */
 PRIVATE struct test task_mgmt_tests_fault[] = {
-	{ NULL,                           NULL                                            },
+	{ NULL,                            NULL                                             },
 };
 
 /**
  * @brief Stress tests.
  */
 PRIVATE struct test task_mgmt_tests_stress[] = {
-	{ NULL,                           NULL                                            },
+	{ NULL,                            NULL                                             },
 };
 
 #endif /* __NANVIX_USE_TASKS */
