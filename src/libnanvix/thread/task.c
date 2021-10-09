@@ -35,26 +35,10 @@
 PRIVATE int __ktask_call1(word_t nr_syscall, word_t t)
 {
 	/* Invalid task. */
-	if (!t)
+	if (UNLIKELY(!t))
 		return (-EINVAL);
 
 	return (kcall1(nr_syscall, t));
-}
-
-/*============================================================================*
- * __ktask_call2()                                                            *
- *============================================================================*/
-
-/*
- * @see __ktask_call2()
- */
-PRIVATE int __ktask_call2(word_t nr_syscall, word_t t0, word_t t1)
-{
-	/* Invalid task. */
-	if (!t0 || !t1)
-		return (-EINVAL);
-
-	return (kcall2(nr_syscall, t0, t1));
 }
 
 /*============================================================================*
@@ -65,8 +49,7 @@ PUBLIC ktask_t * ktask_current(void)
 {
 	ktask_t * curr = NULL;
 
-	if ( __ktask_call1(NR_task_current, (word_t) &curr) < 0)
-		return (NULL);
+	kcall1(NR_task_current, (word_t) &curr);
 
 	return (curr);
 }
@@ -81,7 +64,7 @@ PUBLIC ktask_t * ktask_current(void)
 PUBLIC int ktask_create(ktask_t * task, ktask_fn fn, int period)
 {
 	/* Invalid task. */
-	if (task == NULL || fn == NULL)
+	if (UNLIKELY(task == NULL || fn == NULL))
 		return (-EINVAL);
 
 	return (kcall3(NR_task_create, (word_t) task, (word_t) fn, (word_t) period));
@@ -100,16 +83,61 @@ PUBLIC int ktask_unlink(ktask_t * task)
 }
 
 /*============================================================================*
+ * ktask_connect()                                                            *
+ *============================================================================*/
+
+/*
+ * @see ktask_connect()
+ */
+PUBLIC int ktask_connect(ktask_t * parent, ktask_t * child, int type)
+{
+	/* Invalid tasks. */
+	if (UNLIKELY(parent == NULL || child == NULL))
+		return (-EINVAL);
+
+	/* Invalid type. */
+	if (UNLIKELY(!WITHIN(type, KTASK_DEPENDENCY_HARD, KTASK_DEPENDENCY_INVALID)))
+		return (-EINVAL);
+
+	return (kcall3(NR_task_connect,
+		(word_t) parent,
+		(word_t) child,
+		(word_t) type
+	));
+}
+
+/*============================================================================*
+ * ktask_disconnect()                                                         *
+ *============================================================================*/
+
+/*
+ * @see ktask_disconnect()
+ */
+PUBLIC int ktask_disconnect(ktask_t * parent, ktask_t * child)
+{
+	/* Invalid tasks. */
+	if (UNLIKELY(parent == NULL || child == NULL))
+		return (-EINVAL);
+
+	return (kcall2(NR_task_disconnect, (word_t) parent, (word_t) child));
+}
+
+/*============================================================================*
  * ktask_dispatch()                                                           *
  *============================================================================*/
 
 /*
  * @see ktask_dispatch()
  */
-PUBLIC int ktask_dispatch(ktask_t * task, word_t arg0, word_t arg1, word_t arg2)
+PUBLIC int ktask_dispatch(
+	ktask_t * task,
+	word_t arg0,
+	word_t arg1,
+	word_t arg2
+)
 {
 	/* Invalid pointer. */
-	if (task == NULL)
+	if (UNLIKELY(task == NULL))
 		return (-EINVAL);
 
 	return (kcall4(NR_task_dispatch, (word_t) task, arg0, arg1, arg2));
@@ -122,16 +150,49 @@ PUBLIC int ktask_dispatch(ktask_t * task, word_t arg0, word_t arg1, word_t arg2)
 /*
  * @see ktask_emit()
  */
-PUBLIC int ktask_emit(ktask_t * task, int coreid, word_t arg0, word_t arg1, word_t arg2)
+PUBLIC int ktask_emit(
+	ktask_t * task,
+	int coreid,
+	word_t arg0,
+	word_t arg1,
+	word_t arg2
+)
 {
 	/* Invalid arguments. */
-	if (task == NULL || !WITHIN(coreid, 0, CORES_NUM))
+	if (UNLIKELY(task == NULL || !WITHIN(coreid, 0, CORES_NUM)))
 		return (-EINVAL);
 
-	return (kcall5(
-		NR_task_emit,
+	return (kcall5(NR_task_emit,
 		(word_t) task,
 		(word_t) coreid,
+		arg0,
+		arg1,
+		arg2
+	));
+}
+
+/*============================================================================*
+ * ktask_exit()                                                               *
+ *============================================================================*/
+
+/*
+ * @see ktask_exit()
+ */
+PUBLIC int ktask_exit(
+	int management,
+	ktask_merge_args_fn fn,
+	word_t arg0,
+	word_t arg1,
+	word_t arg2
+)
+{
+	/* Invalid arguments. */
+	if (UNLIKELY(!WITHIN(management, KTASK_MANAGEMENT_SUCCESS, KTASK_MANAGEMENT_ERROR + 1)))
+		return (-EINVAL);
+
+	return (kcall5(NR_task_exit,
+		(word_t) management,
+		(word_t) fn,
 		arg0,
 		arg1,
 		arg2
@@ -163,6 +224,15 @@ PUBLIC int ktask_trywait(ktask_t * task)
 }
 
 /*============================================================================*
+ * ktask_stop()                                                               *
+ *============================================================================*/
+
+PUBLIC int ktask_stop(ktask_t * task)
+{
+	return (__ktask_call1(NR_task_stop, (word_t) task));
+}
+
+/*============================================================================*
  * ktask_continue()                                                           *
  *============================================================================*/
 
@@ -178,29 +248,5 @@ PUBLIC int ktask_continue(ktask_t * task)
 PUBLIC int ktask_complete(ktask_t * task)
 {
 	return (__ktask_call1(NR_task_complete, (word_t) task));
-}
-
-/*============================================================================*
- * ktask_connect()                                                            *
- *============================================================================*/
-
-/*
- * @see ktask_connect()
- */
-PUBLIC int ktask_connect(ktask_t * parent, ktask_t * child)
-{
-	return (__ktask_call2(NR_task_connect, (word_t) parent, (word_t) child));
-}
-
-/*============================================================================*
- * ktask_disconnect()                                                         *
- *============================================================================*/
-
-/*
- * @see ktask_disconnect()
- */
-PUBLIC int ktask_disconnect(ktask_t * parent, ktask_t * child)
-{
-	return (__ktask_call2(NR_task_disconnect, (word_t) parent, (word_t) child));
 }
 
