@@ -69,6 +69,7 @@
 	#define KTASK_MANAGEMENT_AGAIN    TASK_MANAGEMENT_AGAIN    /**< Reschedule the task.            */
 	#define KTASK_MANAGEMENT_STOP     TASK_MANAGEMENT_STOP     /**< Move the task to stopped state. */
 	#define KTASK_MANAGEMENT_PERIODIC TASK_MANAGEMENT_PERIODIC /**< Periodic reschedule the task.   */
+	#define KTASK_MANAGEMENT_ABORT    TASK_MANAGEMENT_ABORT    /**< Abort the task.                 */
 	#define KTASK_MANAGEMENT_ERROR    TASK_MANAGEMENT_ERROR    /**< Release the task with error.    */
 	/**@}*/
 
@@ -98,14 +99,14 @@
 	 * @details Work in Progress.
 	 */
 	/**@{*/
-	#define ktask_get_id(task)                   task_get_id(task)
-	#define ktask_get_return(task)               task_get_return(task)
-	#define ktask_get_number_parents(task)       task_get_number_parents(task)
-	#define ktask_get_number_children(task)      task_get_number_children(task)
-	#define ktask_get_children(task)             task_get_children(task)
-	#define ktask_get_period(task)               task_get_return(task)
-	#define ktask_set_period(task, period)       task_set_period(task, period)
-	#define ktask_config(task, arg0, arg1, arg2) task_config(task, arg0, arg1, arg2)
+	#define ktask_get_id(task)                          task_get_id(task)
+	#define ktask_get_return(task)                      task_get_return(task)
+	#define ktask_get_number_parents(task)              task_get_number_parents(task)
+	#define ktask_get_number_children(task)             task_get_number_children(task)
+	#define ktask_get_children(task)                    task_get_children(task)
+	#define ktask_get_period(task)                      task_get_return(task)
+	#define ktask_set_period(task, period)              task_set_period(task, period)
+	#define ktask_set_arguments(task, arg0, arg1, arg2) task_set_arguments(task, arg0, arg1, arg2)
 
 	extern ktask_t * ktask_current(void);
 

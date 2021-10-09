@@ -38,11 +38,21 @@
 #define TEST_TASK_SPECIFIC_VALUE 0xc0ffee
 
 /**
+ * @brief Maximum lenght of a string.
+ */
+#define TEST_TASK_STRING_LENGTH_MAX 10
+
+/**
+ * @brief Convert to word_t.
+ */
+#define TOW(value) ((word_t) value)
+
+/**
  * @name Auxiliar variables.
  */
 /**@{*/
-PRIVATE int task_value;
-PRIVATE int task_value2;
+PRIVATE int len0;
+PRIVATE char str0[TEST_TASK_STRING_LENGTH_MAX + 1];
 /**@}*/
 
 /**
@@ -52,6 +62,22 @@ PRIVATE int task_value2;
 PRIVATE spinlock_t master_lock;
 PRIVATE spinlock_t slave_lock;
 /**@}*/
+
+/**
+ * @brief Compare two strings.
+ *
+ * @param s0  First string.
+ * @param s1  Second string.
+ * @param len Length os the strings.
+ */
+PRIVATE bool test_strings_are_equals(const char * s0, const char * s1, int len)
+{
+	while (len--)
+		if (s0[len] != s1[len])
+			return (false);
+
+	return (true);
+}
 
 /*============================================================================*
  * Test functions and variables.                                              *
@@ -88,20 +114,6 @@ PRIVATE int dummy(word_t arg0, word_t arg1, word_t arg2)
 }
 
 /*----------------------------------------------------------------------------*
- * Setter test.                                                               *
- *----------------------------------------------------------------------------*/
-
-PRIVATE int setter(word_t arg0, word_t arg1, word_t arg2)
-{
-	UNUSED(arg1);
-	UNUSED(arg2);
-
-	task_value = (int) arg0;
-
-	return (TEST_TASK_SPECIFIC_VALUE);
-}
-
-/*----------------------------------------------------------------------------*
  * Get current task test.                                                     *
  *----------------------------------------------------------------------------*/
 
@@ -118,97 +130,35 @@ PRIVATE int current_fn(word_t arg0, word_t arg1, word_t arg2)
 }
 
 /*----------------------------------------------------------------------------*
- * Inheritance.                                                               *
+ * String setter.                                                             *
  *----------------------------------------------------------------------------*/
 
-PRIVATE int parent_simple(word_t arg0, word_t arg1, word_t arg2)
+/**
+ * @brief Dummy task function.
+ *
+ * @param arg Unused argument.
+ */
+PRIVATE int str_setter(word_t arg0, word_t arg1, word_t arg2)
 {
-	UNUSED(arg0);
-	UNUSED(arg1);
-	UNUSED(arg2);
+	char * str;
+	int * len;
+	char chr;
 
-	task_value *= 5;
+	str = (char *) arg0;
+	len = (int *)  arg1;
+	chr = (char)   arg2;
 
-	return (0);
-}
+	/* Does the current length exceeds maximum length? */
+	if (*len >= TEST_TASK_STRING_LENGTH_MAX)
+	{
+		ktask_exit0(TASK_MANAGEMENT_ERROR);
+		return (-1);
+	}
 
-PRIVATE int child_simple(word_t arg0, word_t arg1, word_t arg2)
-{
-	UNUSED(arg0);
-	UNUSED(arg1);
-	UNUSED(arg2);
+	/* Sets charecter. */
+	str[(*len)++] = chr;
 
-	task_value /= 10;
-
-	return (0);
-}
-
-PRIVATE int parent_children(word_t arg0, word_t arg1, word_t arg2)
-{
-	UNUSED(arg0);
-	UNUSED(arg1);
-	UNUSED(arg2);
-
-	task_value  *= 5;
-	task_value2 /= 5;
-
-	return (0);
-}
-
-PRIVATE int child0_children(word_t arg0, word_t arg1, word_t arg2)
-{
-	UNUSED(arg0);
-	UNUSED(arg1);
-	UNUSED(arg2);
-
-	task_value /= 10;
-
-	return (0);
-}
-
-PRIVATE int child1_children(word_t arg0, word_t arg1, word_t arg2)
-{
-	UNUSED(arg0);
-	UNUSED(arg1);
-	UNUSED(arg2);
-
-	task_value2 *= 2;
-
-	return (0);
-}
-
-PRIVATE int parent0_parent(word_t arg0, word_t arg1, word_t arg2)
-{
-	UNUSED(arg0);
-	UNUSED(arg1);
-	UNUSED(arg2);
-
-	task_value *= 5;
-
-	return (0);
-}
-
-PRIVATE int parent1_parent(word_t arg0, word_t arg1, word_t arg2)
-{
-	UNUSED(arg0);
-	UNUSED(arg1);
-	UNUSED(arg2);
-
-	task_value2 /= 5;
-
-	return (0);
-}
-
-PRIVATE int child_parent(word_t arg0, word_t arg1, word_t arg2)
-{
-	UNUSED(arg0);
-	UNUSED(arg1);
-	UNUSED(arg2);
-
-	task_value  /= 10;
-	task_value2 *=  2;
-
-	return (0);
+	return (TEST_TASK_SPECIFIC_VALUE);
 }
 
 /*----------------------------------------------------------------------------*
@@ -217,20 +167,80 @@ PRIVATE int child_parent(word_t arg0, word_t arg1, word_t arg2)
 
 PRIVATE int periodic(word_t arg0, word_t arg1, word_t arg2)
 {
-	UNUSED(arg1);
-	UNUSED(arg2);
+	char * str;
+	int * len;
+	char chr;
 
-	/**
-	 * The current ktask_exit does not immediately return like thread_exit. It
-	 * is used to set up management action after task conclusion or to pass
-	 * arguments to the children tasks.
-	 *
-	 * TODO: Next implementation must immediately return.
-	 */
-	if ((++task_value) < (int) arg0)
+	str = (char *) arg0;
+	len = (int *)  arg1;
+	chr = (char)   arg2;
+
+	/* Does the current length exceeds local maximum length? */
+	if (*len < (int) TEST_TASK_STRING_LENGTH_MAX)
+	{
+		/* Sets charecter. */
+		str[(*len)++] = chr;
+
+		/**
+		 * Reschedule periodic.
+		 *
+		 * Obs.: The current ktask_exit does not immediately return like
+		 * thread_exit. It is used to set up management action after task
+		 * conclusion or to pass arguments to the children tasks.
+		 *
+		 * TODO: Next implementation must immediately return.
+		 */
 		ktask_exit0(KTASK_MANAGEMENT_PERIODIC);
+	}
 	else
 		ktask_exit0(KTASK_MANAGEMENT_SUCCESS);
+
+	return (0);
+}
+
+/*----------------------------------------------------------------------------*
+ * Loop.                                                                      *
+ *----------------------------------------------------------------------------*/
+
+PRIVATE void loop_merge_args(
+	const word_t pargs[KTASK_ARGS_NUM],
+	word_t nargs[KTASK_ARGS_NUM]
+)
+{
+	nargs[0] = pargs[0];
+	nargs[1] = pargs[1];
+
+	/* Ignores args[2] because it contains individual character value. */
+}
+
+PRIVATE int loop(word_t arg0, word_t arg1, word_t arg2)
+{
+	char * str;
+	char chr;
+	int pos;
+
+	str = (char *) arg0;
+	pos = (int)    arg1;
+	chr = (char)   arg2;
+
+	/* Does the current length exceeds local maximum length? */
+	if (pos < (int) TEST_TASK_STRING_LENGTH_MAX)
+	{
+		/* Sets charecter. */
+		*str = chr;
+
+		/* Update the arguments of the same task (loop args -> loop args + 1). */
+		ktask_exit2(
+			KTASK_MANAGEMENT_SUCCESS,
+			loop_merge_args,
+			(word_t) (str + 1),
+			(word_t) (pos + 1)
+		);
+	}
+
+	/* Finish the loop without error. */
+	else
+		ktask_exit0(KTASK_MANAGEMENT_ABORT);
 
 	return (0);
 }
@@ -363,25 +373,27 @@ PRIVATE void test_api_ktask_dispatch(void)
 {
 	ktask_t t;
 
-	task_value  = 0ULL;
+	len0 = 0;
+	kmemset(str0, '\0', TEST_TASK_STRING_LENGTH_MAX + 1);
 
-	test_assert(ktask_create(&t, setter, 0) == 0);
+	test_assert(ktask_create(&t, str_setter, 0) == 0);
 
-	test_assert(ktask_dispatch1(&t, TEST_TASK_SPECIFIC_VALUE) == 0);
+	test_assert(ktask_dispatch3(&t, TOW(str0), TOW(&len0), TOW('s')) == 0);
 	test_assert(ktask_wait(&t) == TEST_TASK_SPECIFIC_VALUE);
 
 		/* Internal values. */
 		test_assert(t.state   == TASK_STATE_COMPLETED);
-		test_assert(t.args[0] == TEST_TASK_SPECIFIC_VALUE);
-		test_assert(t.args[1] == 0);
-		test_assert(t.args[2] == 0);
+		test_assert(t.args[0] == TOW(str0));
+		test_assert(t.args[1] == TOW(&len0));
+		test_assert(t.args[2] == TOW('s'));
 
 		/* External values. */
-		test_assert(ktask_get_id(&t)         != TASK_NULL_ID);
+		test_assert(ktask_get_id(&t)     != TASK_NULL_ID);
 		test_assert(ktask_get_return(&t) == TEST_TASK_SPECIFIC_VALUE);
 
 		/* Check the value. */
-		test_assert(task_value == TEST_TASK_SPECIFIC_VALUE);
+		test_assert(len0 == 1);
+		test_assert(test_strings_are_equals(str0, "s\0", 2));
 
 	test_assert(ktask_unlink(&t) == 0);
 }
@@ -453,10 +465,11 @@ PRIVATE void test_api_ktask_hard_dependendy(void)
 {
 	ktask_t t0, t1;
 
-	task_value = 20;
+	len0 = 0;
+	kmemset(str0, '\0', TEST_TASK_STRING_LENGTH_MAX + 1);
 
-	test_assert(ktask_create(&t0, parent_simple, 0) == 0);
-	test_assert(ktask_create(&t1, child_simple, 0) == 0);
+	test_assert(ktask_create(&t0, str_setter, 0) == 0);
+	test_assert(ktask_create(&t1, str_setter, 0) == 0);
 
 	test_assert(ktask_connect(&t0, &t1, KTASK_DEPENDENCY_HARD) == 0);
 
@@ -468,11 +481,12 @@ PRIVATE void test_api_ktask_hard_dependendy(void)
 		test_assert(ktask_get_number_parents(&t1) == 1);
 		test_assert(ktask_get_number_children(&t1) == 0);
 
-	test_assert(ktask_dispatch0(&t0) == 0);
-	test_assert(ktask_wait(&t0) == 0);
-	test_assert(ktask_wait(&t1) == 0);
+	ktask_set_arguments(&t1, TOW(str0), TOW(&len0), TOW('2'));
 
-		test_assert(task_value == 10);
+	test_assert(ktask_dispatch3(&t0, TOW(str0), TOW(&len0), TOW('1')) == 0);
+
+	test_assert(ktask_wait(&t0) == TEST_TASK_SPECIFIC_VALUE);
+	test_assert(ktask_wait(&t1) == TEST_TASK_SPECIFIC_VALUE);
 
 		/* Parent. */
 		test_assert(ktask_get_number_parents(&t0) == 0);
@@ -481,6 +495,10 @@ PRIVATE void test_api_ktask_hard_dependendy(void)
 		/* Children. */
 		test_assert(ktask_get_number_parents(&t1) == 1);
 		test_assert(ktask_get_number_children(&t1) == 0);
+
+		/* Check the value. */
+		test_assert(len0 == 2);
+		test_assert(test_strings_are_equals(str0, "12\0", 3));
 
 	test_assert(ktask_disconnect(&t0, &t1) == 0);
 
@@ -499,10 +517,11 @@ PRIVATE void test_api_ktask_soft_dependendy(void)
 {
 	ktask_t t0, t1;
 
-	task_value = 20;
+	len0 = 0;
+	kmemset(str0, '\0', TEST_TASK_STRING_LENGTH_MAX + 1);
 
-	test_assert(ktask_create(&t0, parent_simple, 0) == 0);
-	test_assert(ktask_create(&t1, child_simple, 0) == 0);
+	test_assert(ktask_create(&t0, str_setter, 0) == 0);
+	test_assert(ktask_create(&t1, str_setter, 0) == 0);
 
 	test_assert(ktask_connect(&t0, &t1, KTASK_DEPENDENCY_SOFT) == 0);
 
@@ -514,11 +533,11 @@ PRIVATE void test_api_ktask_soft_dependendy(void)
 		test_assert(ktask_get_number_parents(&t1) == 1);
 		test_assert(ktask_get_number_children(&t1) == 0);
 
-	test_assert(ktask_dispatch0(&t0) == 0);
-	test_assert(ktask_wait(&t0) == 0);
-	test_assert(ktask_wait(&t1) == 0);
+	ktask_set_arguments(&t1, TOW(str0), TOW(&len0), TOW('2'));
 
-		test_assert(task_value == 10);
+	test_assert(ktask_dispatch3(&t0, TOW(str0), TOW(&len0), TOW('1')) == 0);
+	test_assert(ktask_wait(&t0) == TEST_TASK_SPECIFIC_VALUE);
+	test_assert(ktask_wait(&t1) == TEST_TASK_SPECIFIC_VALUE);
 
 		/* Parent. */
 		test_assert(ktask_get_number_parents(&t0) == 0);
@@ -527,6 +546,10 @@ PRIVATE void test_api_ktask_soft_dependendy(void)
 		/* Children. */
 		test_assert(ktask_get_number_parents(&t1) == 0);
 		test_assert(ktask_get_number_children(&t1) == 0);
+
+		/* Check the value. */
+		test_assert(len0 == 2);
+		test_assert(test_strings_are_equals(str0, "12\0", 3));
 
 	test_assert(ktask_disconnect(&t0, &t1) != 0);
 
@@ -545,12 +568,12 @@ PRIVATE void test_api_ktask_children(void)
 {
 	ktask_t t0, t1, t2;
 
-	task_value  = 20;
-	task_value2 = 20;
+	len0 = 0;
+	kmemset(str0, '\0', TEST_TASK_STRING_LENGTH_MAX + 1);
 
-	test_assert(ktask_create(&t0, parent_children, 0) == 0);
-	test_assert(ktask_create(&t1, child0_children, 0) == 0);
-	test_assert(ktask_create(&t2, child1_children, 0) == 0);
+	test_assert(ktask_create(&t0, str_setter, 0) == 0);
+	test_assert(ktask_create(&t1, str_setter, 0) == 0);
+	test_assert(ktask_create(&t2, str_setter, 0) == 0);
 
 	test_assert(ktask_connect(&t0, &t1, KTASK_DEPENDENCY_HARD) == 0);
 	test_assert(ktask_connect(&t0, &t2, KTASK_DEPENDENCY_HARD) == 0);
@@ -565,15 +588,20 @@ PRIVATE void test_api_ktask_children(void)
 		test_assert(ktask_get_number_parents(&t2) == 1);
 		test_assert(ktask_get_number_children(&t2) == 0);
 
-	test_assert(ktask_dispatch0(&t0) == 0);
+	ktask_set_arguments(&t2, TOW(str0), TOW(&len0), TOW('2'));
+	ktask_set_arguments(&t1, TOW(str0), TOW(&len0), TOW('1'));
 
-	test_assert(ktask_wait(&t1) == 0);
+	test_assert(ktask_dispatch3(&t0, TOW(str0), TOW(&len0), TOW('0')) == 0);
 
-		test_assert(task_value == 10);
+	test_assert(ktask_wait(&t1) == TEST_TASK_SPECIFIC_VALUE);
+	test_assert(ktask_wait(&t2) == TEST_TASK_SPECIFIC_VALUE);
 
-	test_assert(ktask_wait(&t2) == 0);
-
-		test_assert(task_value2 == 8);
+		/* Check the value. */
+		test_assert(len0 == 3);
+		test_assert(
+			test_strings_are_equals(str0, "012\0", 4) ||
+			test_strings_are_equals(str0, "021\0", 4)
+		);
 
 	test_assert(ktask_disconnect(&t0, &t2) == 0);
 	test_assert(ktask_disconnect(&t0, &t1) == 0);
@@ -594,12 +622,12 @@ PRIVATE void test_api_ktask_parent(void)
 {
 	ktask_t t0, t1, t2;
 
-	task_value  = 20;
-	task_value2 = 20;
+	len0 = 0;
+	kmemset(str0, '\0', TEST_TASK_STRING_LENGTH_MAX + 1);
 
-	test_assert(ktask_create(&t0, parent0_parent, 0) == 0);
-	test_assert(ktask_create(&t1, parent1_parent, 0) == 0);
-	test_assert(ktask_create(&t2, child_parent, 0) == 0);
+	test_assert(ktask_create(&t0, str_setter, 0) == 0);
+	test_assert(ktask_create(&t1, str_setter, 0) == 0);
+	test_assert(ktask_create(&t2, str_setter, 0) == 0);
 
 	test_assert(ktask_connect(&t0, &t2, KTASK_DEPENDENCY_SOFT) == 0);
 	test_assert(ktask_connect(&t1, &t2, KTASK_DEPENDENCY_HARD) == 0);
@@ -614,8 +642,10 @@ PRIVATE void test_api_ktask_parent(void)
 		test_assert(ktask_get_number_parents(&t2) == 2);
 		test_assert(ktask_get_number_children(&t2) == 0);
 
-	test_assert(ktask_dispatch0(&t0) == 0);
-	test_assert(ktask_wait(&t0) == 0);
+	ktask_set_arguments(&t2, TOW(str0), TOW(&len0), TOW('2'));
+
+	test_assert(ktask_dispatch3(&t0, TOW(str0), TOW(&len0), TOW('0')) == 0);
+	test_assert(ktask_wait(&t0) == TEST_TASK_SPECIFIC_VALUE);
 
 		/* Current task states. */
 		test_assert(t0.state == TASK_STATE_COMPLETED);
@@ -632,14 +662,13 @@ PRIVATE void test_api_ktask_parent(void)
 		test_assert(ktask_get_number_parents(&t2) == 1);
 		test_assert(ktask_get_number_children(&t2) == 0);
 
-	test_assert(ktask_dispatch0(&t1) == 0);
-	test_assert(ktask_wait(&t1) == 0);
+		/* Check the value. */
+		test_assert(len0 == 1);
+		test_assert(test_strings_are_equals(str0, "0\0", 2));
 
-	test_assert(ktask_wait(&t2) == 0);
-
-		/* Check values. */
-		test_assert(task_value == 10);
-		test_assert(task_value2 == 8);
+	test_assert(ktask_dispatch3(&t1, TOW(str0), TOW(&len0), TOW('1')) == 0);
+	test_assert(ktask_wait(&t1) == TEST_TASK_SPECIFIC_VALUE);
+	test_assert(ktask_wait(&t2) == TEST_TASK_SPECIFIC_VALUE);
 
 		/* Parent. */
 		test_assert(ktask_get_number_parents(&t0) == 0);
@@ -650,6 +679,10 @@ PRIVATE void test_api_ktask_parent(void)
 		/* Children. */
 		test_assert(ktask_get_number_parents(&t2) == 1);
 		test_assert(ktask_get_number_children(&t2) == 0);
+
+		/* Check values. */
+		test_assert(len0 == 3);
+		test_assert(test_strings_are_equals(str0, "012\0", 4));
 
 	test_assert(ktask_disconnect(&t0, &t2) < 0);
 	test_assert(ktask_disconnect(&t1, &t2) == 0);
@@ -670,17 +703,106 @@ PRIVATE void test_api_ktask_exit_periodic(void)
 {
 	ktask_t t;
 
-	task_value = 0;
+	len0 = 0;
+	kmemset(str0, '\0', TEST_TASK_STRING_LENGTH_MAX + 1);
 
 	test_assert(ktask_create(&t, periodic, 10) == 0);
 
-	test_assert(ktask_dispatch1(&t, 10) == 0);
+	test_assert(ktask_dispatch3(&t, TOW(str0), TOW(&len0), TOW('t')) == 0);
 	test_assert(ktask_wait(&t) == 0);
 
-	/* Check the value. */
-	test_assert(task_value == 10);
+		/* Check values. */
+		test_assert(len0 == TEST_TASK_STRING_LENGTH_MAX);
+		test_assert(test_strings_are_equals(str0, "tttttttttt\0", 11));
 
 	test_assert(ktask_unlink(&t) == 0);
+}
+
+/*----------------------------------------------------------------------------*
+ * test_api_ktask_loop_periodic()                                             *
+ *----------------------------------------------------------------------------*/
+
+/**
+ * @brief API test for dispatch a task.
+ */
+PRIVATE void test_api_ktask_loop_periodic(void)
+{
+	ktask_t t;
+
+	kmemset(str0, '\0', TEST_TASK_STRING_LENGTH_MAX + 1);
+
+	test_assert(ktask_create(&t, loop, 10) == 0);
+	test_assert(ktask_connect(&t, &t, KTASK_DEPENDENCY_HARD) == 0);
+
+	test_assert(ktask_dispatch3(&t, TOW(str0), 0, TOW('t')) == 0);
+
+	for (int i = 0; i < 10; ++i)
+		test_assert(ktask_wait(&t) == 0);
+
+		kprintf("builded str %s", str0);
+		kprintf("expected str %s", "tttttttttt\0");
+
+		/* Check values. */
+		test_assert(test_strings_are_equals(str0, "tttttttttt\0", 11));
+
+		/* Check state. */
+		test_assert(t.state == TASK_STATE_ABORTED);
+
+	test_assert(ktask_unlink(&t) == 0);
+}
+
+/*----------------------------------------------------------------------------*
+ * test_api_ktask_loop_complex()                                              *
+ *----------------------------------------------------------------------------*/
+
+/**
+ * @brief API test for dispatch a task.
+ */
+PRIVATE void test_api_ktask_loop_complex(void)
+{
+	ktask_t t0, t1, t2;
+
+	kmemset(str0, '\0', TEST_TASK_STRING_LENGTH_MAX + 1);
+
+	test_assert(ktask_create(&t0, loop, 10) == 0);
+	test_assert(ktask_create(&t1, loop, 0) == 0);
+	test_assert(ktask_create(&t2, loop, 0) == 0);
+
+	/**
+	 * Loop: { - HARD } != { .. SOFT }
+	 *
+	 * +----------------+
+	 * 'v               |
+	 * t0 ---+---> t1 -+
+	 * .^    :
+	 * :     +..> t2 ..+
+	 * +...............+
+	 *
+	 */
+	test_assert(ktask_connect(&t0, &t1, KTASK_DEPENDENCY_HARD) == 0);
+	test_assert(ktask_connect(&t1, &t0, KTASK_DEPENDENCY_HARD) == 0);
+	test_assert(ktask_connect(&t0, &t2, KTASK_DEPENDENCY_SOFT) == 0);
+	test_assert(ktask_connect(&t2, &t0, KTASK_DEPENDENCY_SOFT) == 0);
+
+	ktask_set_arguments(&t1, 0, 0, TOW('1'));
+	ktask_set_arguments(&t2, 0, 0, TOW('2'));
+
+	test_assert(ktask_dispatch3(&t0, TOW(str0), 0, TOW('0')) == 0);
+
+	for (int i = 0; i < 5; ++i)
+		test_assert(ktask_wait(&t0) == 0);
+
+		/* Check values. */
+		test_assert(test_strings_are_equals(str0, "0120101010\0", 11));
+
+		/* Check state. */
+		test_assert(t0.state == TASK_STATE_ABORTED);
+		test_assert(t1.state == TASK_STATE_COMPLETED);
+		test_assert(t2.state == TASK_STATE_COMPLETED);
+
+	test_assert(ktask_unlink(&t0) == 0);
+	test_assert(ktask_unlink(&t1) == 0);
+	test_assert(ktask_unlink(&t2) == 0);
 }
 
 /*----------------------------------------------------------------------------*
@@ -726,6 +848,8 @@ PRIVATE struct test task_mgmt_tests_api[] = {
 	{ test_api_ktask_children,        "[test][task][api] task children        [passed]" },
 	{ test_api_ktask_parent,          "[test][task][api] task parent          [passed]" },
 	{ test_api_ktask_exit_periodic,   "[test][task][api] task exit periodic   [passed]" },
+	{ test_api_ktask_loop_periodic,   "[test][task][api] task loop periodic   [passed]" },
+	{ test_api_ktask_loop_complex,    "[test][task][api] task loop complex    [passed]" },
 	{ test_api_ktask_emit,            "[test][task][api] task emit            [passed]" },
 	{ NULL,                            NULL                                             },
 };
