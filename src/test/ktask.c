@@ -223,6 +223,14 @@ PRIVATE int loop(word_t arg0, word_t arg1, word_t arg2)
 	pos = (int)    arg1;
 	chr = (char)   arg2;
 
+	/* Is the position already written? */
+	if (*str != '\0')
+	{
+		/* Move to the next position. */
+		str++;
+		pos++;
+	}
+
 	/* Does the current length exceeds local maximum length? */
 	if (pos < (int) TEST_TASK_STRING_LENGTH_MAX)
 	{
@@ -736,11 +744,8 @@ PRIVATE void test_api_ktask_loop_periodic(void)
 
 	test_assert(ktask_dispatch3(&t, TOW(str0), 0, TOW('t')) == 0);
 
-	for (int i = 0; i < 10; ++i)
+	for (int i = 0; i < (TEST_TASK_STRING_LENGTH_MAX + 1); ++i)
 		test_assert(ktask_wait(&t) == 0);
-
-		kprintf("builded str %s", str0);
-		kprintf("expected str %s", "tttttttttt\0");
 
 		/* Check values. */
 		test_assert(test_strings_are_equals(str0, "tttttttttt\0", 11));
@@ -748,6 +753,7 @@ PRIVATE void test_api_ktask_loop_periodic(void)
 		/* Check state. */
 		test_assert(t.state == TASK_STATE_ABORTED);
 
+	test_assert(ktask_disconnect(&t, &t) == 0);
 	test_assert(ktask_unlink(&t) == 0);
 }
 
@@ -796,9 +802,14 @@ PRIVATE void test_api_ktask_loop_complex(void)
 		test_assert(test_strings_are_equals(str0, "0120101010\0", 11));
 
 		/* Check state. */
-		test_assert(t0.state == TASK_STATE_ABORTED);
-		test_assert(t1.state == TASK_STATE_COMPLETED);
+		test_assert(t0.state == TASK_STATE_COMPLETED);
+		test_assert(t1.state == TASK_STATE_ABORTED);
 		test_assert(t2.state == TASK_STATE_COMPLETED);
+
+	test_assert(ktask_disconnect(&t0, &t1) == 0);
+	test_assert(ktask_disconnect(&t1, &t0) == 0);
+	test_assert(ktask_disconnect(&t0, &t2) < 0);
+	test_assert(ktask_disconnect(&t2, &t0) < 0);
 
 	test_assert(ktask_unlink(&t0) == 0);
 	test_assert(ktask_unlink(&t1) == 0);
