@@ -89,7 +89,7 @@ PUBLIC int ktask_unlink(ktask_t * task)
 /*
  * @see ktask_connect()
  */
-PUBLIC int ktask_connect(ktask_t * parent, ktask_t * child, int type)
+PUBLIC int ktask_connect(ktask_t * parent, ktask_t * child, int type, int triggers)
 {
 	/* Invalid tasks. */
 	if (UNLIKELY(parent == NULL || child == NULL))
@@ -99,10 +99,15 @@ PUBLIC int ktask_connect(ktask_t * parent, ktask_t * child, int type)
 	if (UNLIKELY(!WITHIN(type, KTASK_DEPENDENCY_HARD, KTASK_DEPENDENCY_INVALID)))
 		return (-EINVAL);
 
-	return (kcall3(NR_task_connect,
+	/* Invalid triggers. */
+	if (UNLIKELY(!(triggers & KTASK_TRIGGER_ALL)))
+		return (-EINVAL);
+
+	return (kcall4(NR_task_connect,
 		(word_t) parent,
 		(word_t) child,
-		(word_t) type
+		(word_t) type,
+		(word_t) triggers
 	));
 }
 
@@ -248,5 +253,14 @@ PUBLIC int ktask_continue(ktask_t * task)
 PUBLIC int ktask_complete(ktask_t * task)
 {
 	return (__ktask_call1(NR_task_complete, (word_t) task));
+}
+
+/*============================================================================*
+ * ktask_finish()                                                             *
+ *============================================================================*/
+
+PUBLIC int ktask_finish(ktask_t * task)
+{
+	return (__ktask_call1(NR_task_finish, (word_t) task));
 }
 

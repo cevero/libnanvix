@@ -59,27 +59,46 @@
 	/**@}*/
 
 	/**
+	 * @name Dependency's trigger condition.
+	 *
+	 * @details When a dependency is notified.
+	 * 0: On a success notification.
+	 * 0: On a finish notification.
+	 * 0: On a error notification.
+	 */
+	/**@{*/
+	#define KTASK_TRIGGER_SUCCESS  TASK_TRIGGER_SUCCESS  /**< Notify success.                     */
+	#define KTASK_TRIGGER_FINISHED TASK_TRIGGER_FINISHED /**< Notify finalization.                */
+	#define KTASK_TRIGGER_CONTINUE TASK_TRIGGER_CONTINUE /**< Notify continuation.                */
+	#define KTASK_TRIGGER_ERROR    TASK_TRIGGER_ERROR    /**< Notify error.                       */
+	#define KTASK_TRIGGER_ALL      TASK_TRIGGER_ALL      /**< Enable all notifications.           */
+	#define KTASK_TRIGGER_DEFAULT  TASK_TRIGGER_DEFAULT  /**< All conditions except finalization. */
+	/**@}*/
+
+	/**
 	 * @name Management behaviors on a task.
 	 *
 	 * @details The management value indicates which action the Dispatcher must
 	 * perform over the current task.
 	 */
 	/**@{*/
-	#define KTASK_MANAGEMENT_SUCCESS  TASK_MANAGEMENT_SUCCESS  /**< Release the task with success.  */
-	#define KTASK_MANAGEMENT_AGAIN    TASK_MANAGEMENT_AGAIN    /**< Reschedule the task.            */
-	#define KTASK_MANAGEMENT_STOP     TASK_MANAGEMENT_STOP     /**< Move the task to stopped state. */
-	#define KTASK_MANAGEMENT_PERIODIC TASK_MANAGEMENT_PERIODIC /**< Periodic reschedule the task.   */
-	#define KTASK_MANAGEMENT_ABORT    TASK_MANAGEMENT_ABORT    /**< Abort the task.                 */
-	#define KTASK_MANAGEMENT_ERROR    TASK_MANAGEMENT_ERROR    /**< Release the task with error.    */
+	#define KTASK_MANAGEMENT_SUCCESS  TASK_MANAGEMENT_SUCCESS  /**< Release the task on success.                  */
+	#define KTASK_MANAGEMENT_FINISH   TASK_MANAGEMENT_FINISH   /**< Release the task on finalization.             */
+	#define KTASK_MANAGEMENT_CONTINUE TASK_MANAGEMENT_CONTINUE /**< Release the task without releasing semaphore. */
+	#define KTASK_MANAGEMENT_AGAIN    TASK_MANAGEMENT_AGAIN    /**< Reschedule the task.                          */
+	#define KTASK_MANAGEMENT_STOP     TASK_MANAGEMENT_STOP     /**< Move the task to stopped state.               */
+	#define KTASK_MANAGEMENT_PERIODIC TASK_MANAGEMENT_PERIODIC /**< Periodic reschedule the task.                 */
+	#define KTASK_MANAGEMENT_ABORT    TASK_MANAGEMENT_ABORT    /**< Abort the task.                               */
+	#define KTASK_MANAGEMENT_ERROR    TASK_MANAGEMENT_ERROR    /**< Release the task with error.                  */
+	#define KTASK_MANAGEMENT_DEFAULT  TASK_MANAGEMENT_DEFAULT  /**< Release the task on success.                  */
 	/**@}*/
 
 	/**
-	 * @name Default values used on task_exit.
+	 * @brief Default merge function.
+	 *
+	 * @details Overwrite arguments.
 	 */
-	/**@{*/
-	#define KTASK_MANAGEMENT_DEFAULT    TASK_MANAGEMENT_DEFAULT    /**< Release the task with success.  */
-	#define KTASK_MERGE_ARGS_FN_DEFAULT TASK_MERGE_ARGS_FN_DEFAULT /**< Overwrite arguments.            */
-	/**@}*/
+	#define KTASK_MERGE_ARGS_FN_DEFAULT TASK_MERGE_ARGS_FN_DEFAULT
 
 	/**
 	 * @name Task Types.
@@ -107,12 +126,13 @@
 	#define ktask_get_period(task)                      task_get_return(task)
 	#define ktask_set_period(task, period)              task_set_period(task, period)
 	#define ktask_set_arguments(task, arg0, arg1, arg2) task_set_arguments(task, arg0, arg1, arg2)
+	#define ktask_get_arguments(task)                   task_get_arguments(task)
 
 	extern ktask_t * ktask_current(void);
 
 	extern int ktask_create(ktask_t *, ktask_fn, int);
 	extern int ktask_unlink(ktask_t *);
-	extern int ktask_connect(ktask_t *, ktask_t *, int);
+	extern int ktask_connect(ktask_t *, ktask_t *, int, int);
 	extern int ktask_disconnect(ktask_t *, ktask_t *);
 
 	#define ktask_dispatch0(task)                   ktask_dispatch(task,    0,    0,    0)
@@ -138,6 +158,7 @@
 	extern int ktask_stop(ktask_t *);
 	extern int ktask_continue(ktask_t *);
 	extern int ktask_complete(ktask_t *);
+	extern int ktask_finish(ktask_t *);
 	/**@}*/
 
 #endif /* NANVIX_SYS_TASK_H_ */

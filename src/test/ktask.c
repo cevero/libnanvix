@@ -237,9 +237,12 @@ PRIVATE int loop(word_t arg0, word_t arg1, word_t arg2)
 		/* Sets charecter. */
 		*str = chr;
 
-		/* Update the arguments of the same task (loop args -> loop args + 1). */
+		/**
+		 * Update the arguments of the same task and continue the loop without
+		 * releasing the semaphore (args -> args + 1).
+		 */
 		ktask_exit2(
-			KTASK_MANAGEMENT_SUCCESS,
+			KTASK_MANAGEMENT_CONTINUE,
 			loop_merge_args,
 			(word_t) (str + 1),
 			(word_t) (pos + 1)
@@ -248,7 +251,7 @@ PRIVATE int loop(word_t arg0, word_t arg1, word_t arg2)
 
 	/* Finish the loop without error. */
 	else
-		ktask_exit0(KTASK_MANAGEMENT_ABORT);
+		ktask_exit0(KTASK_MANAGEMENT_FINISH);
 
 	return (0);
 }
@@ -316,7 +319,7 @@ PRIVATE void test_api_ktask_connect(void)
 	test_assert(ktask_create(&t2, dummy, 0) == 0);
 	test_assert(ktask_create(&t3, dummy, 0) == 0);
 
-	test_assert(ktask_connect(&t1, &t2, KTASK_DEPENDENCY_HARD) == 0);
+	test_assert(ktask_connect(&t1, &t2, KTASK_DEPENDENCY_HARD, KTASK_TRIGGER_DEFAULT) == 0);
 
 		/* Parent t1. */
 		test_assert(ktask_get_number_parents(&t1) == 0);
@@ -326,7 +329,7 @@ PRIVATE void test_api_ktask_connect(void)
 		test_assert(ktask_get_number_parents(&t2) == 1);
 		test_assert(ktask_get_number_children(&t2) == 0);
 
-	test_assert(ktask_connect(&t1, &t3, KTASK_DEPENDENCY_HARD) == 0);
+	test_assert(ktask_connect(&t1, &t3, KTASK_DEPENDENCY_HARD, KTASK_TRIGGER_DEFAULT) == 0);
 
 		/* Parent t1. */
 		test_assert(ktask_get_number_parents(&t1) == 0);
@@ -340,8 +343,8 @@ PRIVATE void test_api_ktask_connect(void)
 		test_assert(ktask_get_number_parents(&t3) == 1);
 		test_assert(ktask_get_number_children(&t3) == 0);
 
-	test_assert(ktask_connect(&t0, &t1, KTASK_DEPENDENCY_HARD) == 0);
-	test_assert(ktask_connect(&t0, &t3, KTASK_DEPENDENCY_HARD) == 0);
+	test_assert(ktask_connect(&t0, &t1, KTASK_DEPENDENCY_HARD, KTASK_TRIGGER_DEFAULT) == 0);
+	test_assert(ktask_connect(&t0, &t3, KTASK_DEPENDENCY_HARD, KTASK_TRIGGER_DEFAULT) == 0);
 
 		/* Parent t0. */
 		test_assert(ktask_get_number_parents(&t0) == 0);
@@ -479,7 +482,7 @@ PRIVATE void test_api_ktask_hard_dependendy(void)
 	test_assert(ktask_create(&t0, str_setter, 0) == 0);
 	test_assert(ktask_create(&t1, str_setter, 0) == 0);
 
-	test_assert(ktask_connect(&t0, &t1, KTASK_DEPENDENCY_HARD) == 0);
+	test_assert(ktask_connect(&t0, &t1, KTASK_DEPENDENCY_HARD, KTASK_TRIGGER_DEFAULT) == 0);
 
 		/* Parent. */
 		test_assert(ktask_get_number_parents(&t0) == 0);
@@ -531,7 +534,7 @@ PRIVATE void test_api_ktask_soft_dependendy(void)
 	test_assert(ktask_create(&t0, str_setter, 0) == 0);
 	test_assert(ktask_create(&t1, str_setter, 0) == 0);
 
-	test_assert(ktask_connect(&t0, &t1, KTASK_DEPENDENCY_SOFT) == 0);
+	test_assert(ktask_connect(&t0, &t1, KTASK_DEPENDENCY_SOFT, KTASK_TRIGGER_DEFAULT) == 0);
 
 		/* Parent. */
 		test_assert(ktask_get_number_parents(&t0) == 0);
@@ -583,8 +586,8 @@ PRIVATE void test_api_ktask_children(void)
 	test_assert(ktask_create(&t1, str_setter, 0) == 0);
 	test_assert(ktask_create(&t2, str_setter, 0) == 0);
 
-	test_assert(ktask_connect(&t0, &t1, KTASK_DEPENDENCY_HARD) == 0);
-	test_assert(ktask_connect(&t0, &t2, KTASK_DEPENDENCY_HARD) == 0);
+	test_assert(ktask_connect(&t0, &t1, KTASK_DEPENDENCY_HARD, KTASK_TRIGGER_DEFAULT) == 0);
+	test_assert(ktask_connect(&t0, &t2, KTASK_DEPENDENCY_HARD, KTASK_TRIGGER_DEFAULT) == 0);
 
 		/* Parent. */
 		test_assert(ktask_get_number_parents(&t0) == 0);
@@ -637,8 +640,8 @@ PRIVATE void test_api_ktask_parent(void)
 	test_assert(ktask_create(&t1, str_setter, 0) == 0);
 	test_assert(ktask_create(&t2, str_setter, 0) == 0);
 
-	test_assert(ktask_connect(&t0, &t2, KTASK_DEPENDENCY_SOFT) == 0);
-	test_assert(ktask_connect(&t1, &t2, KTASK_DEPENDENCY_HARD) == 0);
+	test_assert(ktask_connect(&t0, &t2, KTASK_DEPENDENCY_SOFT, KTASK_TRIGGER_DEFAULT) == 0);
+	test_assert(ktask_connect(&t1, &t2, KTASK_DEPENDENCY_HARD, KTASK_TRIGGER_DEFAULT) == 0);
 
 		/* Parent. */
 		test_assert(ktask_get_number_parents(&t0) == 0);
@@ -740,18 +743,17 @@ PRIVATE void test_api_ktask_loop_periodic(void)
 	kmemset(str0, '\0', TEST_TASK_STRING_LENGTH_MAX + 1);
 
 	test_assert(ktask_create(&t, loop, 10) == 0);
-	test_assert(ktask_connect(&t, &t, KTASK_DEPENDENCY_HARD) == 0);
+	test_assert(ktask_connect(&t, &t, KTASK_DEPENDENCY_HARD, KTASK_TRIGGER_DEFAULT) == 0);
 
 	test_assert(ktask_dispatch3(&t, TOW(str0), 0, TOW('t')) == 0);
 
-	for (int i = 0; i < (TEST_TASK_STRING_LENGTH_MAX + 1); ++i)
-		test_assert(ktask_wait(&t) == 0);
+	test_assert(ktask_wait(&t) == 0);
 
 		/* Check values. */
 		test_assert(test_strings_are_equals(str0, "tttttttttt\0", 11));
 
 		/* Check state. */
-		test_assert(t.state == TASK_STATE_ABORTED);
+		test_assert(t.state == TASK_STATE_FINISHED);
 
 	test_assert(ktask_disconnect(&t, &t) == 0);
 	test_assert(ktask_unlink(&t) == 0);
@@ -785,25 +787,24 @@ PRIVATE void test_api_ktask_loop_complex(void)
 	 * +...............+
 	 *
 	 */
-	test_assert(ktask_connect(&t0, &t1, KTASK_DEPENDENCY_HARD) == 0);
-	test_assert(ktask_connect(&t1, &t0, KTASK_DEPENDENCY_HARD) == 0);
-	test_assert(ktask_connect(&t0, &t2, KTASK_DEPENDENCY_SOFT) == 0);
-	test_assert(ktask_connect(&t2, &t0, KTASK_DEPENDENCY_SOFT) == 0);
+	test_assert(ktask_connect(&t0, &t1, KTASK_DEPENDENCY_HARD, KTASK_TRIGGER_DEFAULT) == 0);
+	test_assert(ktask_connect(&t1, &t0, KTASK_DEPENDENCY_HARD, KTASK_TRIGGER_DEFAULT) == 0);
+	test_assert(ktask_connect(&t0, &t2, KTASK_DEPENDENCY_SOFT, KTASK_TRIGGER_DEFAULT) == 0);
+	test_assert(ktask_connect(&t2, &t0, KTASK_DEPENDENCY_SOFT, KTASK_TRIGGER_DEFAULT) == 0);
 
 	ktask_set_arguments(&t1, 0, 0, TOW('1'));
 	ktask_set_arguments(&t2, 0, 0, TOW('2'));
 
 	test_assert(ktask_dispatch3(&t0, TOW(str0), 0, TOW('0')) == 0);
 
-	for (int i = 0; i < 5; ++i)
-		test_assert(ktask_wait(&t0) == 0);
+	test_assert(ktask_wait(&t1) == 0);
 
 		/* Check values. */
 		test_assert(test_strings_are_equals(str0, "0120101010\0", 11));
 
 		/* Check state. */
 		test_assert(t0.state == TASK_STATE_COMPLETED);
-		test_assert(t1.state == TASK_STATE_ABORTED);
+		test_assert(t1.state == TASK_STATE_FINISHED);
 		test_assert(t2.state == TASK_STATE_COMPLETED);
 
 	test_assert(ktask_disconnect(&t0, &t1) == 0);
