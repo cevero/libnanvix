@@ -177,14 +177,8 @@ int kportal_close(int portalid)
  * kportal_aread()                                                            *
  *============================================================================*/
 
-/**
- * @details The kportal_aread() asynchronously read @p size bytes of
- * data pointed to by @p buffer from the input portal @p portalid.
- */
-ssize_t kportal_aread(int portalid, void * buffer, size_t size)
+ssize_t __kportal_aread(int portalid, void * buffer, size_t size)
 {
-	ssize_t ret;
-
 	/* Invalid buffer. */
 	if (buffer == NULL)
 		return (-EINVAL);
@@ -193,14 +187,27 @@ ssize_t kportal_aread(int portalid, void * buffer, size_t size)
 	if (size == 0 || size > KPORTAL_MESSAGE_DATA_SIZE)
 		return (-EINVAL);
 
-	do
-	{
-		ret = kcall3(
+	return (
+		kcall3(
 			NR_portal_aread,
 			(word_t) portalid,
 			(word_t) buffer,
-			(word_t) size);
-	} while ((ret == -EBUSY) || (ret == -ENOMSG));
+			(word_t) size
+		)
+	);
+}
+
+/**
+ * @details The kportal_aread() asynchronously read @p size bytes of
+ * data pointed to by @p buffer from the input portal @p portalid.
+ */
+ssize_t kportal_aread(int portalid, void * buffer, size_t size)
+{
+	ssize_t ret;
+
+	do
+		ret = __kportal_aread(portalid, buffer, size);
+	while ((ret == -EBUSY) || (ret == -ENOMSG));
 
 	return (ret);
 }
@@ -208,6 +215,26 @@ ssize_t kportal_aread(int portalid, void * buffer, size_t size)
 /*============================================================================*
  * kportal_awrite()                                                           *
  *============================================================================*/
+
+ssize_t __kportal_awrite(int portalid, const void * buffer, size_t size)
+{
+	/* Invalid buffer. */
+	if (buffer == NULL)
+		return (-EINVAL);
+
+	/* Invalid size. */
+	if (size == 0 || size > KPORTAL_MESSAGE_DATA_SIZE)
+		return (-EINVAL);
+
+	return (
+		kcall3(
+			NR_portal_awrite,
+			(word_t) portalid,
+			(word_t) buffer,
+			(word_t) size
+		)
+	);
+}
 
 /**
  * @details The kportal_awrite() asynchronously write @p size bytes
@@ -217,22 +244,9 @@ ssize_t kportal_awrite(int portalid, const void * buffer, size_t size)
 {
 	ssize_t ret;
 
-	/* Invalid buffer. */
-	if (buffer == NULL)
-		return (-EINVAL);
-
-	/* Invalid size. */
-	if (size == 0 || size > KPORTAL_MESSAGE_DATA_SIZE)
-		return (-EINVAL);
-
 	do
-	{
-		ret = kcall3(
-			NR_portal_awrite,
-			(word_t) portalid,
-			(word_t) buffer,
-			(word_t) size);
-	} while ((ret == -EACCES) || (ret == -EBUSY));
+		ret = __kportal_awrite(portalid, buffer, size);
+	while ((ret == -EACCES) || (ret == -EBUSY));
 
 	return (ret);
 }
@@ -241,20 +255,18 @@ ssize_t kportal_awrite(int portalid, const void * buffer, size_t size)
  * kportal_wait()                                                             *
  *============================================================================*/
 
+int __kportal_wait(int portalid)
+{
+	return (kcall1(NR_portal_wait, (word_t) portalid));
+}
+
 /**
  * @details The kportal_wait() waits for asyncrhonous operations in
  * the input/output portal @p portalid to complete.
  */
 int kportal_wait(int portalid)
 {
-	int ret;
-
-	ret = kcall1(
-		NR_portal_wait,
-		(word_t) portalid
-	);
-
-	return (ret);
+	return (__kportal_wait(portalid));
 }
 
 /*============================================================================*

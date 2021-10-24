@@ -204,6 +204,22 @@ int kmailbox_close(int mbxid)
  * kmailbox_awrite()                                                          *
  *============================================================================*/
 
+ssize_t __kmailbox_awrite(int mbxid, const void * buffer, size_t size)
+{
+	/* Invalid buffer size. */
+	if ((size == 0) || (size > KMAILBOX_MESSAGE_SIZE))
+		return (-EINVAL);
+
+	return (
+		kcall3(
+			NR_mailbox_awrite,
+			(word_t) mbxid,
+			(word_t) buffer,
+			(word_t) size
+		)
+	);
+}
+
 /**
  * @details The kmailbox_awrite() asynchronously write @p size bytes
  * of data pointed to by @p buffer to the output mailbox @p mbxid.
@@ -212,19 +228,9 @@ ssize_t kmailbox_awrite(int mbxid, const void * buffer, size_t size)
 {
 	int ret;
 
-	/* Invalid buffer size. */
-	if ((size == 0) || (size > KMAILBOX_MESSAGE_SIZE))
-		return (-EINVAL);
-
 	do
-	{
-		ret = kcall3(
-			NR_mailbox_awrite,
-			(word_t) mbxid,
-			(word_t) buffer,
-			(word_t) size
-		);
-	} while ((ret == -ETIMEDOUT) || (ret == -EAGAIN) || (ret == -EBUSY));
+		ret = __kmailbox_awrite(mbxid, buffer, size);
+	while ((ret == -ETIMEDOUT) || (ret == -EAGAIN) || (ret == -EBUSY));
 
 	return (ret);
 }
@@ -232,6 +238,22 @@ ssize_t kmailbox_awrite(int mbxid, const void * buffer, size_t size)
 /*============================================================================*
  * kmailbox_aread()                                                           *
  *============================================================================*/
+
+ssize_t __kmailbox_aread(int mbxid, void * buffer, size_t size)
+{
+	/* Invalid buffer size. */
+	if ((size == 0) || (size > KMAILBOX_MESSAGE_SIZE))
+		return (-EINVAL);
+
+	return (
+		kcall3(
+			NR_mailbox_aread,
+			(word_t) mbxid,
+			(word_t) buffer,
+			(word_t) size
+		)
+	);
+}
 
 /**
  * @details The kmailbox_aread() asynchronously read @p size bytes of
@@ -241,19 +263,9 @@ ssize_t kmailbox_aread(int mbxid, void * buffer, size_t size)
 {
 	int ret;
 
-	/* Invalid buffer size. */
-	if ((size == 0) || (size > KMAILBOX_MESSAGE_SIZE))
-		return (-EINVAL);
-
 	do
-	{
-		ret = kcall3(
-			NR_mailbox_aread,
-			(word_t) mbxid,
-			(word_t) buffer,
-			(word_t) size
-		);
-	} while ((ret == -ETIMEDOUT) || (ret == -EBUSY) || (ret == -ENOMSG));
+		ret = __kmailbox_aread(mbxid, buffer, size);
+	while ((ret == -ETIMEDOUT) || (ret == -EBUSY) || (ret == -ENOMSG));
 
 	return (ret);
 }
@@ -262,20 +274,18 @@ ssize_t kmailbox_aread(int mbxid, void * buffer, size_t size)
  * kmailbox_wait()                                                            *
  *============================================================================*/
 
+int __kmailbox_wait(int mbxid)
+{
+	return (kcall1(NR_mailbox_wait, (word_t) mbxid));
+}
+
 /**
  * @details The kmailbox_wait() waits for asyncrhonous operations in
  * the input/output mailbox @p mbxid to complete.
  */
 int kmailbox_wait(int mbxid)
 {
-	int ret;
-
-	ret = kcall1(
-		NR_mailbox_wait,
-		(word_t) mbxid
-	);
-
-	return (ret);
+	return (__kmailbox_wait(mbxid));
 }
 
 /*============================================================================*

@@ -94,11 +94,12 @@
 	/**@}*/
 
 	/**
-	 * @brief Default merge function.
-	 *
-	 * @details Overwrite arguments.
+	 * @name Default merge arguments's functions.
 	 */
-	#define KTASK_MERGE_ARGS_FN_DEFAULT TASK_MERGE_ARGS_FN_DEFAULT
+	/**@{*/
+	#define KTASK_MERGE_ARGS_FN_REPLACE TASK_MERGE_ARGS_FN_REPLACE /**< Replace arguments. */
+	#define KTASK_MERGE_ARGS_FN_DEFAULT TASK_MERGE_ARGS_FN_DEFAULT /**< Replace arguments. */
+	/**@}*/
 
 	/**
 	 * @name Task Types.
