@@ -36,14 +36,19 @@
 #define IKC_FLOWS_MAX THREAD_MAX
 
 /**
- * @brief Get the kernel ID of a thread.
+ * @brief Invalid communicator ID.
  */
-#define KERNEL_TID (((thread_get_curr() - KTHREAD_MASTER) - SYS_THREAD_MAX))
+#define IKC_FLOW_CID_INVALID (~0UL)
 
 /**
  * @brief Get the flow pointer from a task pointer.
  */
 #define IKC_FLOW_FROM_TASK(task, is_config) ((struct ikc_flow *) (task - (is_config ? 0 : 1)))
+
+/**
+ * @brief Get the kernel ID of a thread.
+ */
+#define KERNEL_TID (((thread_get_curr() - KTHREAD_MASTER) - SYS_THREAD_MAX))
 
 /**
  * @name Communication status from noc/active.h.
@@ -84,8 +89,11 @@ struct ikc_flow
 {
 	ktask_t config;
 	ktask_t wait;
-	struct resource resource;
+
+	int ret;
 	int type;
+	word_t cid;
+	struct resource resource;
 };
 
 /**
@@ -213,7 +221,7 @@ PRIVATE int __ikc_flow_config(word_t arg0, word_t arg1, word_t arg2)
 
 	/* Successful configure. */
 	if ((ret = ___ikc_flow_config(arg0, arg1, arg2)) >= 0)
-		ktask_exit1(KTASK_MANAGEMENT_CONTINUE, KTASK_MERGE_ARGS_FN_REPLACE, arg0);
+		ktask_exit1(KTASK_MANAGEMENT_SUCCESS, KTASK_MERGE_ARGS_FN_REPLACE, arg0);
 
 	/* Must do again. */
 	else if (IKC_FLOW_AGAIN_FLAGS(ret))
@@ -306,16 +314,20 @@ PRIVATE int __ikc_flow_wait(word_t arg0, word_t arg1, word_t arg2)
 PUBLIC int ikc_flow_config(int type, word_t cid, word_t buf, word_t size)
 {
 	int ret;
-	struct ikc_flow * flow = NULL;
+	bool is_user;
+	struct ikc_flow * flow;
 
 	/* Invalid type. */
 	if (UNLIKELY(!WITHIN(type, IKC_FLOW_MAILBOX_READ, IKC_FLOW_INVALID)))
 		return (-EINVAL);
 
+	flow    = NULL;
+	is_user = kthread_self() != KTHREAD_DISPATCHER_TID;
+
 	spinlock_lock(&ikc_flow_lock);
 
 		/* User thread. */
-		if (UNLIKELY(kthread_self() != KTHREAD_DISPATCHER_TID))
+		if (is_user)
 			flow = &ikc_flows.users[KERNEL_TID];
 
 		/* Dispatcher. */
@@ -323,31 +335,51 @@ PUBLIC int ikc_flow_config(int type, word_t cid, word_t buf, word_t size)
 		{
 			for (int i = 0; i < IKC_FLOWS_MAX; ++i)
 			{
-				if (resource_is_used(&ikc_flows.dispatchers[i].resource))
+				if (!resource_is_used(&ikc_flows.dispatchers[i].resource))
+					flow = (flow == NULL) ? &ikc_flows.dispatchers[i] : flow;
+
+				/* Only one task per communinator. */
+				else if (ikc_flows.dispatchers[i].type == type && ikc_flows.dispatchers[i].cid == cid)
 				{
-					/* Only one task per communinator. */
-					if (ktask_get_arguments(&(ikc_flows.dispatchers[i].config))[0] == cid)
-						return (-EINVAL);
-
-					continue;
+					ret = (-EINVAL);
+					goto error;
 				}
-
-				flow = (flow == NULL) ? &ikc_flows.dispatchers[i] : flow;
 			}
 		}
 
+		if (UNLIKELY(flow == NULL))
+		{
+			ret = (-EBUSY);
+			goto error;
+		}
+
+		flow->cid  = cid;
+		flow->type = type;
+		resource_set_used(&flow->resource);
+
 	spinlock_unlock(&ikc_flow_lock);
-
-	if (UNLIKELY(flow == NULL))
-		return (-EBUSY);
-
-	resource_set_used(&flow->resource);
-	flow->type = type;
 
 	if (UNLIKELY((ret = ktask_dispatch3(&flow->config, cid, buf, size)) < 0))
 		return (ret);
 
+	if (UNLIKELY(is_user && (flow->ret = ktask_wait(&flow->wait)) < 0))
+	{
+		if (ktask_get_return(&flow->config) < 0)
+		{
+			flow->cid  = IKC_FLOW_CID_INVALID;
+			flow->type = IKC_FLOW_INVALID;
+			resource_set_unused(&flow->resource);
+
+			return (ktask_get_return(&flow->config));
+		}
+	}
+
 	return (size);
+
+error:
+	spinlock_unlock(&ikc_flow_lock);
+
+	return (ret);
 }
 
 /**
@@ -361,16 +393,21 @@ PUBLIC int ikc_flow_config(int type, word_t cid, word_t buf, word_t size)
  */
 PUBLIC int ikc_flow_wait(int type, word_t cid)
 {
-	struct ikc_flow * flow = NULL;
+	int ret;
+	bool is_user;
+	struct ikc_flow * flow;
 
 	/* Invalid type. */
 	if (UNLIKELY(!WITHIN(type, IKC_FLOW_MAILBOX_READ, IKC_FLOW_INVALID)))
 		return (-EINVAL);
 
+	flow    = NULL;
+	is_user = kthread_self() != KTHREAD_DISPATCHER_TID;
+
 	spinlock_lock(&ikc_flow_lock);
 
 		/* User thread. */
-		if (UNLIKELY(kthread_self() != KTHREAD_DISPATCHER_TID))
+		if (is_user)
 			flow = &ikc_flows.users[KERNEL_TID];
 
 		/* Dispatcher. */
@@ -384,8 +421,7 @@ PUBLIC int ikc_flow_wait(int type, word_t cid)
 				if (ikc_flows.dispatchers[i].type != type)
 					continue;
 
-				/* Only one task per communinator. */
-				if (ktask_get_arguments(&(ikc_flows.dispatchers[i].config))[0] != cid)
+				if (ikc_flows.dispatchers[i].cid != cid)
 					continue;
 
 				flow = &ikc_flows.dispatchers[i];
@@ -398,7 +434,26 @@ PUBLIC int ikc_flow_wait(int type, word_t cid)
 	if (UNLIKELY(flow == NULL))
 		return (-EINVAL);
 
-	return (ktask_wait(&flow->wait));
+	/**
+	 * [user] The waiting function is done on config because we must detect if
+	 * the config task failed. As we only release the waiting semaphore, we must
+	 * wait for it on config to get the error coming from config failure.
+	 *
+	 * [dispatcher] This function only will be executed when the waiting task
+	 * completes (on-demand dependency between handler task and this task). So,
+	 * we just decrement the waiting semaphore incremented before.
+	 */
+	ret = is_user ? flow->ret : ktask_wait(&flow->wait);
+
+	spinlock_lock(&ikc_flow_lock);
+
+		flow->cid  = IKC_FLOW_CID_INVALID;
+		flow->type = IKC_FLOW_INVALID;
+		resource_set_unused(&flow->resource);
+
+	spinlock_unlock(&ikc_flow_lock);
+
+	return (ret);
 }
 
 /**
@@ -424,7 +479,7 @@ PRIVATE void __ikc_flow_init(struct ikc_flow * flow)
 			&flow->wait,
 			&flow->config,
 			KTASK_DEPENDENCY_HARD,
-			KTASK_TRIGGER_DEFAULT
+			KTASK_TRIGGER_CONTINUE
 		) == 0
 	);
 
@@ -445,8 +500,12 @@ PUBLIC void ikc_flow_init(void)
 		/* Setup management variables. */
 		ikc_flows.users[i].resource       = RESOURCE_INITIALIZER;
 		ikc_flows.users[i].type           = IKC_FLOW_INVALID;
+		ikc_flows.users[i].cid            = IKC_FLOW_CID_INVALID;
+		ikc_flows.users[i].ret            = 0;
 		ikc_flows.dispatchers[i].resource = RESOURCE_INITIALIZER;
 		ikc_flows.dispatchers[i].type     = IKC_FLOW_INVALID;
+		ikc_flows.dispatchers[i].cid      = IKC_FLOW_CID_INVALID;
+		ikc_flows.dispatchers[i].ret      = 0;
 
 		/* Configure base flow. */
 		__ikc_flow_init(&ikc_flows.users[i]);

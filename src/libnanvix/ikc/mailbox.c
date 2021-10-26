@@ -30,8 +30,10 @@
 #if __TARGET_HAS_MAILBOX
 
 #include <posix/errno.h>
+#include "task.h"
 
 #if __NANVIX_IKC_USES_ONLY_MAILBOX
+
 
 /**
  * @brief Protections.
@@ -226,6 +228,8 @@ ssize_t __kmailbox_awrite(int mbxid, const void * buffer, size_t size)
  */
 ssize_t kmailbox_awrite(int mbxid, const void * buffer, size_t size)
 {
+#if !__NANVIX_USE_COMM_WITH_TASKS
+
 	int ret;
 
 	do
@@ -233,6 +237,19 @@ ssize_t kmailbox_awrite(int mbxid, const void * buffer, size_t size)
 	while ((ret == -ETIMEDOUT) || (ret == -EAGAIN) || (ret == -EBUSY));
 
 	return (ret);
+
+#else
+
+	return (
+		ikc_flow_config(
+			IKC_FLOW_MAILBOX_WRITE,
+			(word_t) mbxid,
+			(word_t) buffer,
+			(word_t) size
+		)
+	);
+
+#endif /* !__NANVIX_USE_COMM_WITH_TASKS */
 }
 
 /*============================================================================*
@@ -261,6 +278,8 @@ ssize_t __kmailbox_aread(int mbxid, void * buffer, size_t size)
  */
 ssize_t kmailbox_aread(int mbxid, void * buffer, size_t size)
 {
+#if !__NANVIX_USE_COMM_WITH_TASKS
+
 	int ret;
 
 	do
@@ -268,6 +287,19 @@ ssize_t kmailbox_aread(int mbxid, void * buffer, size_t size)
 	while ((ret == -ETIMEDOUT) || (ret == -EBUSY) || (ret == -ENOMSG));
 
 	return (ret);
+
+#else
+
+	return (
+		ikc_flow_config(
+			IKC_FLOW_MAILBOX_READ,
+			(word_t) mbxid,
+			(word_t) buffer,
+			(word_t) size
+		)
+	);
+
+#endif /* !__NANVIX_USE_COMM_WITH_TASKS */
 }
 
 /*============================================================================*
@@ -285,7 +317,15 @@ int __kmailbox_wait(int mbxid)
  */
 int kmailbox_wait(int mbxid)
 {
+#if !__NANVIX_USE_COMM_WITH_TASKS
+
 	return (__kmailbox_wait(mbxid));
+
+#else
+
+	return (ikc_flow_wait(IKC_FLOW_MAILBOX, (word_t) mbxid));
+
+#endif /* !__NANVIX_USE_COMM_WITH_TASKS */
 }
 
 /*============================================================================*

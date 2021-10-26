@@ -64,7 +64,7 @@
 #define TEST_PENDING_UNLINK_MBX_PAIRS 2
 
 /**
- * @name Threads 
+ * @name Threads
  */
 /**{*/
 #define TEST_THREAD_MAX       (CORES_NUM - 1)
@@ -1831,7 +1831,7 @@ PRIVATE void * do_thread_multiplexing_broadcast(void * arg)
 			{
 				for (int k = 0; k < nports; ++k)
 					test_assert(kmailbox_write(mbxids[k], message, KMAILBOX_MESSAGE_SIZE) == KMAILBOX_MESSAGE_SIZE);
-				
+
 				nanvix_fence(&_fence);
 			}
 
@@ -2256,7 +2256,7 @@ PRIVATE void * do_thread_multiplexing_broadcast_local(void * arg)
 			{
 				for (int k = 0; k < nports; ++k)
 					test_assert(kmailbox_write(mbxids[k], message, KMAILBOX_MESSAGE_SIZE) == KMAILBOX_MESSAGE_SIZE);
-				
+
 				nanvix_fence(&_fence);
 			}
 
