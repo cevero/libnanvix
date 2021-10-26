@@ -28,6 +28,7 @@
 
 #include <nanvix/sys/noc.h>
 #include <posix/errno.h>
+#include "task.h"
 
 /**
  * @brief Protection for allows variable.
@@ -203,6 +204,8 @@ ssize_t __kportal_aread(int portalid, void * buffer, size_t size)
  */
 ssize_t kportal_aread(int portalid, void * buffer, size_t size)
 {
+#if !__NANVIX_USE_COMM_WITH_TASKS
+
 	ssize_t ret;
 
 	do
@@ -210,6 +213,19 @@ ssize_t kportal_aread(int portalid, void * buffer, size_t size)
 	while ((ret == -EBUSY) || (ret == -ENOMSG));
 
 	return (ret);
+
+#else
+
+	return (
+		ikc_flow_config(
+			IKC_FLOW_PORTAL_READ,
+			(word_t) portalid,
+			(word_t) buffer,
+			(word_t) size
+		)
+	);
+
+#endif /* !__NANVIX_USE_COMM_WITH_TASKS */
 }
 
 /*============================================================================*
@@ -242,6 +258,8 @@ ssize_t __kportal_awrite(int portalid, const void * buffer, size_t size)
  */
 ssize_t kportal_awrite(int portalid, const void * buffer, size_t size)
 {
+#if !__NANVIX_USE_COMM_WITH_TASKS
+
 	ssize_t ret;
 
 	do
@@ -249,6 +267,19 @@ ssize_t kportal_awrite(int portalid, const void * buffer, size_t size)
 	while ((ret == -EACCES) || (ret == -EBUSY));
 
 	return (ret);
+
+#else
+
+	return (
+		ikc_flow_config(
+			IKC_FLOW_PORTAL_WRITE,
+			(word_t) portalid,
+			(word_t) buffer,
+			(word_t) size
+		)
+	);
+
+#endif /* !__NANVIX_USE_COMM_WITH_TASKS */
 }
 
 /*============================================================================*
@@ -266,7 +297,15 @@ int __kportal_wait(int portalid)
  */
 int kportal_wait(int portalid)
 {
+#if !__NANVIX_USE_COMM_WITH_TASKS
+
 	return (__kportal_wait(portalid));
+
+#else
+
+	return (ikc_flow_wait(IKC_FLOW_PORTAL, (word_t) portalid));
+
+#endif /* !__NANVIX_USE_COMM_WITH_TASKS */
 }
 
 /*============================================================================*
